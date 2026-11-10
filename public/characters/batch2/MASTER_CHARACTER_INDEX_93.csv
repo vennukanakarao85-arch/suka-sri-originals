@@ -1,0 +1,94 @@
+Roster No.,Exact displayed name,Role / label on sheet,Group folder,Artwork status
+1,Shin Takamori,Main character,01_Main_Characters,HD Master Art
+2,Rosey Rina Kobayashi,Main character,01_Main_Characters,HD Master Art
+3,Ryūjin,Guardian dragon,01_Main_Characters,HD Master Art
+4,Isamu Takamori,Grandfather,02_Takamori_Family,HD Master Art
+5,Sachiko Takamori,Grandmother,02_Takamori_Family,HD Master Art
+6,Akio Takamori,Big father,03_Big_Fathers_Family,HD Master Art
+7,Kaori Takamori,Big mother,03_Big_Fathers_Family,HD Master Art
+8,Kazuki Takamori,Big brother,03_Big_Fathers_Family,HD Master Art
+9,Emi Takamori,Big sister,03_Big_Fathers_Family,Canonical Portrait
+10,Ichika Takamori,Big sister,03_Big_Fathers_Family,Canonical Portrait
+11,Ryō Kisaragi,Big cousin,03_Big_Fathers_Family,Canonical Portrait
+12,Haruto Takamori,Father,04_Shins_Family,HD Master Art
+13,Miyuki Takamori,Mother,04_Shins_Family,HD Master Art
+14,Shin Takamori,Shin,04_Shins_Family,HD Master Art
+15,Yuna Takamori,Younger sister,04_Shins_Family,HD Master Art
+16,Takeshi Takamori,Small father,05_Small_Fathers_Family,Canonical Portrait
+17,Yukiko Takamori,Small mother,05_Small_Fathers_Family,Canonical Portrait
+18,Kage Takamori,Shadow King,05_Small_Fathers_Family,HD Master Art
+19,Aoi Takamori,Small sister,05_Small_Fathers_Family,Canonical Portrait
+20,Ren Hayato,Aoi's husband,05_Small_Fathers_Family,Canonical Portrait
+21,Ayumi Takamori,Father's sister,06_Fathers_Sisters_Family,Canonical Portrait
+22,Kazuya Aizawa,Husband,06_Fathers_Sisters_Family,Canonical Portrait
+23,Mei Aizawa,Daughter,06_Fathers_Sisters_Family,Canonical Portrait
+24,Kazuhiro Kobayashi,Father,07_Kobayashi_Family,Canonical Portrait
+25,Ayumi Kobayashi,Mother,07_Kobayashi_Family,Canonical Portrait
+26,Rosey Rina Kobayashi,Heroine,07_Kobayashi_Family,HD Master Art
+27,Daiki Sakamoto,Childhood friend,08_Childhood_Friends,HD Master Art
+28,Yūto Nishimura,Childhood friend,08_Childhood_Friends,HD Master Art
+29,Ren Fujimoto,Childhood friend,08_Childhood_Friends,HD Master Art
+30,Kaito Hoshino,Childhood friend,08_Childhood_Friends,HD Master Art
+31,Hideo Sakamoto,Father,09_Family_Friends,Canonical Portrait
+32,Yumi Sakamoto,Mother,09_Family_Friends,Canonical Portrait
+33,Kenta Nishimura,Father,09_Family_Friends,Canonical Portrait
+34,Ayumi Nishimura,Mother,09_Family_Friends,Canonical Portrait
+35,Naoto Fujimoto,Father,09_Family_Friends,Canonical Portrait
+36,Haruka Fujimoto,Mother,09_Family_Friends,Canonical Portrait
+37,Masato Hoshino,Father,09_Family_Friends,Canonical Portrait
+38,Keiko Hoshino,Mother,09_Family_Friends,Canonical Portrait
+39,Keiko Tanaka,Class Teacher,10_School,Canonical Portrait
+40,Hiroshi Watanabe,Principal,10_School,Canonical Portrait
+41,Takeshi Inoue,Sports Teacher,10_School,Canonical Portrait
+42,Ayaka Mori,Library Teacher,10_School,Canonical Portrait
+43,Shin Shimizu,Student,10_School,Canonical Portrait
+44,Riko Hayashi,Student,10_School,Canonical Portrait
+45,Kei Takeda,Student,10_School,Canonical Portrait
+46,Minoru Kōgami,Student,10_School,Canonical Portrait
+47,Takeru Mori,Student,10_School,Canonical Portrait
+48,Ryō Asakawa,Student,10_School,Canonical Portrait
+49,Sakura Arai,Student,10_School,Canonical Portrait
+50,Kenji Nakamura,Professor,11_College,Canonical Portrait
+51,Shun Okamoto,Senior,11_College,Canonical Portrait
+52,Hinata Arai,Junior,11_College,Canonical Portrait
+53,Naoki Yoshida,Student Council,11_College,Canonical Portrait
+54,Akari,College sister,11_College,Canonical Portrait
+55,Miya,College sister,11_College,Canonical Portrait
+56,Misaki,College sister,11_College,Canonical Portrait
+57,Suzune,College sister,11_College,Canonical Portrait
+58,Sana Shindō,College friend,11_College,HD Master Art
+59,Kana Minami,College friend,11_College,Canonical Portrait
+60,Reina Kanda,College friend,11_College,Canonical Portrait
+61,Hikaru Shindō,Founder & CEO,12_NOVATECH,Canonical Portrait
+62,Sana Shindō,Daughter,12_NOVATECH,HD Master Art
+63,Koji Andō,Vice President,13_SUKA_SRI_Core_Team,HD Master Art
+64,Yuki Ishikawa,AI Engineer,13_SUKA_SRI_Core_Team,HD Master Art
+65,Kana Mizuno,Environmental Scientist,13_SUKA_SRI_Core_Team,Canonical Portrait
+66,Dr. Tōru Shibata,Medical Director,13_SUKA_SRI_Core_Team,Canonical Portrait
+67,Genji Arakawa,Security Chief,13_SUKA_SRI_Core_Team,Canonical Portrait
+68,Akihiro Matsuda,Research Director,13_SUKA_SRI_Core_Team,Canonical Portrait
+69,Reina Kanda,Legal Advisor,13_SUKA_SRI_Core_Team,Canonical Portrait
+70,Makoto Sugiyama,Global Operations,13_SUKA_SRI_Core_Team,Canonical Portrait
+71,Daisuke Kinoshita,Finance Director,13_SUKA_SRI_Core_Team,Canonical Portrait
+72,Tetsuya Kirishima,President,14_World_Leaders_Global_Figures,Canonical Portrait
+73,Takumi Aizawa,Prime Minister,14_World_Leaders_Global_Figures,Canonical Portrait
+74,Naoko Fujii,UN Representative,14_World_Leaders_Global_Figures,Canonical Portrait
+75,Dr. Rei Kanzaki,Scientist,14_World_Leaders_Global_Figures,Canonical Portrait
+76,Sakura Minase,Environmental Activist,14_World_Leaders_Global_Figures,Canonical Portrait
+77,Masaru Kuroda,Mentor,15_Mentors_Mythical_World,Canonical Portrait
+78,Ryūjin,Guardian Dragon,15_Mentors_Mythical_World,HD Master Art
+79,Seiryū,Blue Dragon,15_Mentors_Mythical_World,Canonical Portrait
+80,Byakko,White Tiger,15_Mentors_Mythical_World,Canonical Portrait
+81,Sōgen,Ancient Sage,15_Mentors_Mythical_World,Canonical Portrait
+82,Shadow King (Kage Takamori),Villain,16_Syndicate_Dark_Shadow,HD Master Art
+83,Queen Akari Himemiya,Villain / Syndicate page,16_Syndicate_Dark_Shadow,HD Master Art
+84,Raiden,Villain,16_Syndicate_Dark_Shadow,HD Master Art
+85,Jin,Villain,16_Syndicate_Dark_Shadow,Full Color Syndicate Art
+86,Akuma,Villain,16_Syndicate_Dark_Shadow,HD Master Art
+87,Shigure,Villain,16_Syndicate_Dark_Shadow,Full Color Syndicate Art
+88,Zero,Villain,16_Syndicate_Dark_Shadow,HD Master Art
+89,Genzō,Villain,16_Syndicate_Dark_Shadow,Full Color Syndicate Art
+90,Kuro,Villain,16_Syndicate_Dark_Shadow,Full Color Syndicate Art
+91,Hayate,Villain,16_Syndicate_Dark_Shadow,Full Color Syndicate Art
+92,Rei,Villain,16_Syndicate_Dark_Shadow,HD Master Art
+93,Gōrō,Villain,16_Syndicate_Dark_Shadow,Full Color Syndicate Art

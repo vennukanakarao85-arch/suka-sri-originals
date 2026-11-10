@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --gold: #FFD700;
+    --violet: #8A2BE2;
+    --electric: #00E5FF;
+    --void: #070709;
+  }
+
+  body {
+    background-color: #050508;
+    color: #e2e8f0;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Custom scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #070709;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #232538;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #FFD700;
+  }
+}
+
+/* Cosmic gradient & glow utilities */
+.cosmic-border {
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  background: linear-gradient(135deg, rgba(20, 20, 32, 0.8) 0%, rgba(7, 7, 9, 0.95) 100%);
+  backdrop-filter: blur(12px);
+}
+
+.cosmic-border:hover {
+  border-color: rgba(255, 215, 0, 0.45);
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.15), 0 0 15px rgba(0, 229, 255, 0.15);
+}
+
+.electric-glow {
+  text-shadow: 0 0 12px rgba(0, 229, 255, 0.65), 0 0 24px rgba(0, 229, 255, 0.35);
+}
+
+.gold-glow {
+  text-shadow: 0 0 12px rgba(255, 215, 0, 0.7), 0 0 30px rgba(255, 215, 0, 0.4);
+}
+
+.violet-glow {
+  text-shadow: 0 0 12px rgba(138, 43, 226, 0.7), 0 0 30px rgba(138, 43, 226, 0.4);
+}
+
+.manga-page-shadow {
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.95), 0 0 20px rgba(255, 215, 0, 0.08);
+}
+
+/* 3D Rotating Logo Animation */
+@keyframes spin3dY {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(360deg);
+  }
+}
+
+@keyframes floatBob {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes goldPulseHalo {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.15);
+  }
+}
+
+.logo-3d-wrap {
+  perspective: 1000px;
+}
+
+.logo-3d-inner {
+  transform-style: preserve-3d;
+  animation: spin3dY 9s linear infinite;
+  will-change: transform;
+}
+
+.logo-3d-float {
+  animation: floatBob 3.5s ease-in-out infinite;
+}
+
+.logo-3d-wrap:hover .logo-3d-inner {
+  animation-duration: 2.2s;
+}
+
+.gold-halo-pulse {
+  animation: goldPulseHalo 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-3d-inner,
+  .logo-3d-float,
+  .gold-halo-pulse {
+    animation: none !important;
+  }
+}
