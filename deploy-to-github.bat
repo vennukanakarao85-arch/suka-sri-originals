@@ -1,40 +1,58 @@
 @echo off
-setlocal
-echo ========================================================
-echo   SUKA SRI ORIGINALS - GITHUB REPOSITORY PUSH
-echo ========================================================
-echo.
-echo Current branch: main
-echo Status: Committed and ready to push (692 files)
-echo.
-set /p REPO_URL="Enter your GitHub Repository URL (e.g. https://github.com/USERNAME/suka-sri-originals.git): "
+setlocal enabledelayedexpansion
+title SUKA SRI ORIGINALS - GitHub Push
+color 0A
 
-if "%REPO_URL%"=="" (
-    echo [ERROR] No repository URL entered. Exiting.
-    pause
-    exit /b 1
-)
-
+echo ========================================================
+echo        SUKA SRI ORIGINALS - GITHUB PUSH SYSTEM
+echo ========================================================
 echo.
-echo Setting remote origin to: %REPO_URL%
+echo Target Repository:
+echo   https://github.com/vennukanakarao85-arch/suka-sri-originals
+echo.
+echo Branch: main
+echo Ready to push: 694 files (Complete Saga, Canon Art, Posters)
+echo.
+
 git remote remove origin 2>nul
-git remote add origin %REPO_URL%
+git remote add origin https://github.com/vennukanakarao85-arch/suka-sri-originals.git
 
+echo Choose your preferred sign-in method:
 echo.
-echo Pushing branch 'main' to GitHub...
-echo (If prompted, log in with your GitHub account via Git Credential Manager)
+echo   [1] Push with Browser Sign-in (Git Credential Manager)
+echo   [2] Push with GitHub Personal Access Token (PAT)
 echo.
-git push -u origin main
+set /p CHOICE="Enter choice (1 or 2, default is 1): "
+
+if "%CHOICE%"=="2" (
+    echo.
+    set /p PAT="Paste your GitHub Personal Access Token: "
+    if "!PAT!"=="" (
+        echo [ERROR] Token cannot be empty.
+        pause
+        exit /b 1
+    )
+    echo.
+    echo Pushing using Token authentication...
+    git push -u https://!PAT!@github.com/vennukanakarao85-arch/suka-sri-originals.git main
+) else (
+    echo.
+    echo Pushing with Git Credential Manager...
+    echo (A browser window or sign-in prompt will open. Click 'Sign in with your browser' to authorize)
+    echo.
+    git push -u origin main
+)
 
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo ========================================================
-    echo   SUCCESS! PUSH TO GITHUB COMPLETE!
+    echo   SUCCESS! PUSH TO GITHUB COMPLETED!
     echo ========================================================
-    echo Repository: %REPO_URL%
+    echo View your repository live at:
+    echo   https://github.com/vennukanakarao85-arch/suka-sri-originals
 ) else (
     echo.
-    echo [ERROR] Git push encountered an error. Please check your URL and account permissions.
+    echo [NOTE] If sign-in was not completed, you can re-run this file anytime.
 )
 
 echo.
