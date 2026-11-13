@@ -31,6 +31,7 @@ import {
   logoutReaderAccount,
   loginWithPassword,
   setPasswordForAccount,
+  resetPasswordWithOtp,
   isOwnerOrAdmin,
   OTP_VALIDITY_SECONDS
 } from '../../services/authService';
@@ -78,6 +79,13 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
   const [loginIdentifier, setLoginIdentifier] = useState<string>('');
   const [loginPassword, setLoginPassword] = useState<string>('');
   const [isLoggingInWithPw, setIsLoggingInWithPw] = useState<boolean>(false);
+
+  // Forgot Password via OTP State
+  const [isForgotPasswordMode, setIsForgotPasswordMode] = useState<boolean>(false);
+  const [forgotTarget, setForgotTarget] = useState<string>('');
+  const [forgotCountryCode, setForgotCountryCode] = useState<string>('+91');
+  const [forgotNewPassword, setForgotNewPassword] = useState<string>('');
+  const [isResettingPw, setIsResettingPw] = useState<boolean>(false);
 
   // Profile Password Setup State
   const [newPassword, setNewPassword] = useState<string>('');
@@ -206,6 +214,87 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
       setErrorMessage(err.message || 'Password login failed.');
     } finally {
       setIsLoggingInWithPw(false);
+    }
+  };
+
+  // Handle Send OTP for Forgot Password
+  const handleSendForgotOtp = async () => {
+    sound.playClick();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const isEmail = forgotTarget.includes('@');
+    const cleanPhone = forgotTarget.replace(/[^0-9]/g, '');
+
+    if (!isEmail && cleanPhone.length < 7) {
+      setErrorMessage('Please enter a valid phone number (min 7 digits) or email address.');
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const res = isEmail
+        ? await sendEmailOtp(forgotTarget)
+        : await sendPhoneOtp(forgotTarget, forgotCountryCode);
+
+      if (res.success) {
+        setOtpSent(true);
+        setPreviewOtp(res.session?.simulatedPreviewOtp || null);
+        setOtpSecondsLeft(OTP_VALIDITY_SECONDS);
+        setResendCooldown(OTP_VALIDITY_SECONDS);
+        setSuccessMessage(res.message);
+        sound.playCelestialChime();
+      } else {
+        setErrorMessage(res.message);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to send OTP.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Handle Verify OTP and Reset Password
+  const handleVerifyForgotOtpAndReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = otpDigits.join('');
+    if (code.length !== 6) {
+      setErrorMessage('Please enter all 6 digits of your OTP.');
+      return;
+    }
+    if (!forgotNewPassword || forgotNewPassword.length < 4) {
+      setErrorMessage('Please enter a new password (min 4 characters).');
+      return;
+    }
+
+    sound.playClick();
+    setErrorMessage(null);
+    setIsResettingPw(true);
+
+    try {
+      const isEmail = forgotTarget.includes('@');
+      const cleanPhone = forgotTarget.replace(/[^0-9]/g, '');
+      const fullTarget = isEmail ? forgotTarget.trim().toLowerCase() : `${forgotCountryCode} ${cleanPhone}`;
+
+      const res = await resetPasswordWithOtp(fullTarget, code, forgotNewPassword);
+      if (res.success && res.account) {
+        onAccountUpdated(res.account);
+        setSuccessMessage(res.message);
+        sound.playCelestialChime();
+        setIsForgotPasswordMode(false);
+        setOtpSent(false);
+        setForgotNewPassword('');
+        setOtpDigits(['', '', '', '', '', '']);
+        setTimeout(() => {
+          onClose();
+        }, 1000);
+      } else {
+        setErrorMessage(res.message);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to reset password.');
+    } finally {
+      setIsResettingPw(false);
     }
   };
 
@@ -625,61 +714,233 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
                 </button>
               </div>
 
-              {/* PASSWORD LOGIN FORM */}
+              {/* PASSWORD LOGIN & FORGOT PASSWORD VIEW */}
               {authMethod === 'password' ? (
-                <form onSubmit={handlePasswordLogin} className="space-y-4">
-                  <div className="p-3 rounded-xl bg-electric-950/30 border border-electric-500/30 text-[11px] text-electric-300 flex items-center gap-2">
-                    <Laptop className="w-4 h-4 shrink-0 text-electric-400" />
-                    <span>Log in across any phone, laptop, or tablet without losing your VIP membership.</span>
-                  </div>
+                isForgotPasswordMode ? (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-void-900 to-indigo-950/40 border border-purple-500/30 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="w-4 h-4 text-purple-400" />
+                        <span className="text-xs font-bold text-white">Reset Password via 65s OTP</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sound.playClick();
+                          setIsForgotPasswordMode(false);
+                          setOtpSent(false);
+                          setErrorMessage(null);
+                        }}
+                        className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
+                      >
+                        Back to Login
+                      </button>
+                    </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                      Phone Number or Email Address <span className="text-gold-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 9502714652 or reader@sukasri.universe"
-                      value={loginIdentifier}
-                      onChange={(e) => setLoginIdentifier(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-void-950 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-electric-400 transition-colors"
-                      required
-                    />
-                  </div>
+                    {!otpSent ? (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                            Your Registered Phone or Email <span className="text-gold-400">*</span>
+                          </label>
+                          <div className="flex gap-2">
+                            {!forgotTarget.includes('@') && (
+                              <div className="relative w-32 shrink-0">
+                                <select
+                                  value={forgotCountryCode}
+                                  onChange={(e) => setForgotCountryCode(e.target.value)}
+                                  className="w-full appearance-none px-3 py-2.5 rounded-xl bg-void-950 border border-void-800 text-white text-xs font-mono"
+                                >
+                                  {COUNTRY_CODES.map((c) => (
+                                    <option key={c.code} value={c.code} className="bg-void-950 text-white">
+                                      {c.flag} {c.code}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                            <input
+                              type="text"
+                              placeholder="Phone (e.g. 9502714652) or Email"
+                              value={forgotTarget}
+                              onChange={(e) => setForgotTarget(e.target.value)}
+                              className="flex-1 px-4 py-2.5 rounded-xl bg-void-950 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-purple-400"
+                              required
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            A secure 6-digit reset code will be dispatched, valid strictly for 65 seconds.
+                          </p>
+                        </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                      Account Password <span className="text-gold-400">*</span>
-                    </label>
-                    <input
-                      type="password"
-                      placeholder="Enter your account password..."
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-void-950 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-electric-400 transition-colors"
-                      required
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isLoggingInWithPw || !loginIdentifier || !loginPassword}
-                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-electric-500 to-cyan-500 hover:brightness-110 text-void-950 font-display text-xs font-black uppercase tracking-wider shadow-[0_0_25px_rgba(0,229,255,0.3)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-                  >
-                    {isLoggingInWithPw ? (
-                      <>
-                        <RotateCcw className="w-4 h-4 animate-spin" />
-                        <span>Authenticating Across Devices...</span>
-                      </>
+                        <button
+                          type="button"
+                          disabled={isSending || !forgotTarget.trim()}
+                          onClick={handleSendForgotOtp}
+                          className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 text-white font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                        >
+                          {isSending ? (
+                            <>
+                              <RotateCcw className="w-4 h-4 animate-spin" />
+                              <span>Sending 65s OTP...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Lock className="w-4 h-4" />
+                              <span>Send 6-Digit Reset Code (65s OTP)</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     ) : (
-                      <>
-                        <Lock className="w-4 h-4" />
-                        <span>Log In with Password</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
+                      <form onSubmit={handleVerifyForgotOtpAndReset} className="space-y-4">
+                        {previewOtp && (
+                          <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-500/40 text-xs space-y-1">
+                            <div className="flex items-center justify-between text-purple-300 font-bold">
+                              <span>Reset OTP Gateway Notification:</span>
+                              <span className="text-[10px] font-mono text-purple-400">
+                                {otpSecondsLeft}s left
+                              </span>
+                            </div>
+                            <div className="font-mono text-lg font-black text-gold-400">
+                              {previewOtp}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleAutoFillOtp}
+                              className="text-[10px] text-electric-300 underline cursor-pointer"
+                            >
+                              ⚡ 1-Tap Auto-Fill this OTP
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="text-center space-y-1">
+                          <span className="text-xs text-slate-300">Enter the 6-digit code sent to:</span>
+                          <div className="text-xs font-mono font-bold text-gold-400">{forgotTarget}</div>
+                        </div>
+
+                        {/* 6 Digit Input Boxes */}
+                        <div className="flex items-center justify-center gap-2">
+                          {otpDigits.map((digit, idx) => (
+                            <input
+                              key={idx}
+                              ref={(el) => (otpInputRefs.current[idx] = el)}
+                              type="text"
+                              maxLength={1}
+                              value={digit}
+                              disabled={otpSecondsLeft === 0}
+                              onChange={(e) => handleDigitChange(idx, e.target.value)}
+                              onKeyDown={(e) => handleKeyDown(idx, e)}
+                              className="w-10 h-12 rounded-xl bg-void-950 border border-void-800 text-center text-lg font-mono font-bold text-white focus:border-purple-400 outline-none"
+                            />
+                          ))}
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                            Create New Password <span className="text-gold-400">*</span>
+                          </label>
+                          <input
+                            type="password"
+                            placeholder="Enter new password (min 4 characters)..."
+                            value={forgotNewPassword}
+                            onChange={(e) => setForgotNewPassword(e.target.value)}
+                            className="w-full px-4 py-2.5 rounded-xl bg-void-950 border border-void-800 text-white text-xs outline-none focus:border-purple-400"
+                            required
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isResettingPw || otpDigits.join('').length !== 6 || !forgotNewPassword || forgotNewPassword.length < 4}
+                          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:brightness-110 text-white font-bold text-xs uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                        >
+                          {isResettingPw ? (
+                            <>
+                              <RotateCcw className="w-4 h-4 animate-spin" />
+                              <span>Resetting Password & Syncing VIP...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>Reset Password &amp; Log In</span>
+                            </>
+                          )}
+                        </button>
+                      </form>
                     )}
-                  </button>
-                </form>
+                  </div>
+                ) : (
+                  <form onSubmit={handlePasswordLogin} className="space-y-4">
+                    <div className="p-3 rounded-xl bg-electric-950/30 border border-electric-500/30 text-[11px] text-electric-300 flex items-center gap-2">
+                      <Laptop className="w-4 h-4 shrink-0 text-electric-400" />
+                      <span>Log in across any phone, laptop, or tablet without losing your VIP membership.</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                        Phone Number or Email Address <span className="text-gold-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 9502714652 or reader@sukasri.universe"
+                        value={loginIdentifier}
+                        onChange={(e) => setLoginIdentifier(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl bg-void-950 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-electric-400 transition-colors"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                          Account Password <span className="text-gold-400">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            sound.playClick();
+                            setIsForgotPasswordMode(true);
+                            setForgotTarget(loginIdentifier || '');
+                            setOtpSent(false);
+                            setErrorMessage(null);
+                          }}
+                          className="text-[10px] text-electric-400 hover:underline cursor-pointer"
+                        >
+                          Forgot Password?
+                        </button>
+                      </div>
+                      <input
+                        type="password"
+                        placeholder="Enter your account password..."
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl bg-void-950 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-electric-400 transition-colors"
+                        required
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isLoggingInWithPw || !loginIdentifier || !loginPassword}
+                      className="w-full py-3.5 rounded-xl bg-gradient-to-r from-electric-500 to-cyan-500 hover:brightness-110 text-void-950 font-display text-xs font-black uppercase tracking-wider shadow-[0_0_25px_rgba(0,229,255,0.3)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                    >
+                      {isLoggingInWithPw ? (
+                        <>
+                          <RotateCcw className="w-4 h-4 animate-spin" />
+                          <span>Authenticating Across Devices...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-4 h-4" />
+                          <span>Log In with Password</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </form>
+                )
               ) : (
 
                 /* OTP INPUT FIELDS (Phone or Email) */

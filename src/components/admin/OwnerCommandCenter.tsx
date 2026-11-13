@@ -5,9 +5,14 @@ import {
   getAllTransactions,
   isOwnerOrAdmin,
   verifyOwnerPasscode,
+  verifyOwnerOtp,
   setOwnerSession,
   setPasswordForAccount,
-  saveRegisteredUsers
+  saveRegisteredUsers,
+  generateRandomPassword,
+  adminClearPassword,
+  sendPhoneOtp,
+  OTP_VALIDITY_SECONDS
 } from '../../services/authService';
 import {
   getPricingConfig,
@@ -39,7 +44,12 @@ import {
   TrendingUp,
   BookOpen,
   Calendar,
-  Smartphone
+  Smartphone,
+  Copy,
+  RotateCcw,
+  Trash2,
+  Clock,
+  KeyRound
 } from 'lucide-react';
 
 interface OwnerCommandCenterProps {
@@ -75,6 +85,32 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
   const [selectedUserForPassword, setSelectedUserForPassword] = useState<ReaderAccount | null>(null);
   const [newPasswordInput, setNewPasswordInput] = useState<string>('');
   const [passwordSuccessMsg, setPasswordSuccessMsg] = useState<string | null>(null);
+  const [copiedPw, setCopiedPw] = useState<boolean>(false);
+
+  // Owner Passcode & OTP Recovery States
+  const [isOwnerOtpMode, setIsOwnerOtpMode] = useState<boolean>(false);
+  const [ownerOtpSent, setOwnerOtpSent] = useState<boolean>(false);
+  const [ownerOtpDigits, setOwnerOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [ownerPreviewOtp, setOwnerPreviewOtp] = useState<string | null>(null);
+  const [ownerOtpSecondsLeft, setOwnerOtpSecondsLeft] = useState<number>(OTP_VALIDITY_SECONDS);
+  const [isSendingOwnerOtp, setIsSendingOwnerOtp] = useState<boolean>(false);
+  const [isVerifyingOwnerOtp, setIsVerifyingOwnerOtp] = useState<boolean>(false);
+  const [ownerOtpError, setOwnerOtpError] = useState<string | null>(null);
+
+  // Owner OTP Expiry Countdown (65s strict)
+  useEffect(() => {
+    if (!ownerOtpSent || ownerOtpSecondsLeft <= 0) return;
+    const interval = setInterval(() => {
+      setOwnerOtpSecondsLeft((prev) => {
+        if (prev <= 1) {
+          setOwnerOtpError('The 65-second OTP has expired. Please request a new code.');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [ownerOtpSent, ownerOtpSecondsLeft]);
 
   // Refresh live data
   const loadData = () => {
@@ -111,6 +147,92 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
       loadData();
     } else {
       setPasscodeError('Invalid Owner Passcode. Enter 9502714652 or 8842.');
+    }
+  };
+
+  const handleSendOwnerOtp = async () => {
+    sound.playClick();
+    setIsSendingOwnerOtp(true);
+    setOwnerOtpError(null);
+    try {
+      const res = await sendPhoneOtp('9502714652', '+91');
+      if (res.success) {
+        setOwnerOtpSent(true);
+        setOwnerPreviewOtp(res.session?.simulatedPreviewOtp || null);
+        setOwnerOtpSecondsLeft(OTP_VALIDITY_SECONDS);
+        sound.playCelestialChime();
+      } else {
+        setOwnerOtpError(res.message);
+      }
+    } catch (err: any) {
+      setOwnerOtpError(err.message || 'Failed to dispatch Owner OTP.');
+    } finally {
+      setIsSendingOwnerOtp(false);
+    }
+  };
+
+  const handleVerifyOwnerOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = ownerOtpDigits.join('');
+    if (code.length !== 6) {
+      setOwnerOtpError('Please enter all 6 digits of the OTP.');
+      return;
+    }
+    sound.playClick();
+    setIsVerifyingOwnerOtp(true);
+    setOwnerOtpError(null);
+    try {
+      const res = await verifyOwnerOtp(code);
+      if (res.success) {
+        setIsAuthenticated(true);
+        setIsOwnerOtpMode(false);
+        sound.playCelestialChime();
+        loadData();
+      } else {
+        setOwnerOtpError(res.message);
+      }
+    } catch (err: any) {
+      setOwnerOtpError(err.message || 'OTP verification failed.');
+    } finally {
+      setIsVerifyingOwnerOtp(false);
+    }
+  };
+
+  const handleAutoFillOwnerOtp = () => {
+    if (ownerPreviewOtp && ownerPreviewOtp.length === 6) {
+      sound.playClick();
+      setOwnerOtpDigits(ownerPreviewOtp.split(''));
+    }
+  };
+
+  const handleGenerateRandomPassword = () => {
+    sound.playClick();
+    const randomPw = generateRandomPassword();
+    setNewPasswordInput(randomPw);
+    setCopiedPw(false);
+  };
+
+  const handleCopyPassword = () => {
+    if (newPasswordInput) {
+      sound.playClick();
+      navigator.clipboard?.writeText(newPasswordInput);
+      setCopiedPw(true);
+      setTimeout(() => setCopiedPw(false), 2000);
+    }
+  };
+
+  const handleClearUserPassword = async () => {
+    if (!selectedUserForPassword) return;
+    sound.playClick();
+    const ok = await adminClearPassword(selectedUserForPassword.readerId);
+    if (ok) {
+      setPasswordSuccessMsg(`Password removed for ${selectedUserForPassword.name}. User will now log in via 65s OTP.`);
+      setTimeout(() => {
+        setPasswordSuccessMsg(null);
+        setSelectedUserForPassword(null);
+        setNewPasswordInput('');
+        loadData();
+      }, 1800);
     }
   };
 
@@ -260,31 +382,196 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
             </p>
           </div>
 
-          <form onSubmit={handlePasscodeSubmit} className="space-y-4">
-            <div>
-              <input
-                type="password"
-                value={passcodeInput}
-                onChange={e => setPasscodeInput(e.target.value)}
-                placeholder="Enter Master Passcode (e.g. 9502714652)"
-                className="w-full px-4 py-3 rounded-xl bg-void-950 border border-void-800 focus:border-gold-400 text-white placeholder-slate-500 text-center font-mono tracking-widest text-lg outline-none transition-all"
-                autoFocus
-              />
-              {passcodeError && (
-                <p className="text-xs text-rose-400 font-medium mt-2 flex items-center justify-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5" /> {passcodeError}
-                </p>
+          {isOwnerOtpMode ? (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-void-900 to-indigo-950/40 border border-purple-500/30 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-purple-400" />
+                  <span className="text-xs font-bold text-white">Owner 65s OTP Verification</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    sound.playClick();
+                    setIsOwnerOtpMode(false);
+                    setOwnerOtpSent(false);
+                    setOwnerOtpError(null);
+                  }}
+                  className="text-xs text-slate-400 hover:text-white underline cursor-pointer"
+                >
+                  Use Passcode
+                </button>
+              </div>
+
+              {!ownerOtpSent ? (
+                <div className="space-y-4 text-left">
+                  <div className="p-3 rounded-xl bg-void-950 border border-void-800 text-xs space-y-1">
+                    <span className="text-slate-400">Registered Owner Phone:</span>
+                    <div className="font-mono font-bold text-gold-400 text-sm">+91 9502714652</div>
+                    <p className="text-[10px] text-slate-500">
+                      Dispatches a secure 6-digit one-time password valid strictly for 65 seconds.
+                    </p>
+                  </div>
+
+                  {ownerOtpError && (
+                    <p className="text-xs text-rose-400 font-medium flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {ownerOtpError}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={isSendingOwnerOtp}
+                    onClick={handleSendOwnerOtp}
+                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 text-white font-bold text-xs uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSendingOwnerOtp ? (
+                      <>
+                        <RotateCcw className="w-4 h-4 animate-spin" />
+                        <span>Dispatching 65s OTP...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-4 h-4" />
+                        <span>Send 6-Digit Owner OTP (+91 9502714652)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleVerifyOwnerOtpSubmit} className="space-y-4 text-left">
+                  {ownerPreviewOtp && (
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/60 via-void-900 to-indigo-950/60 border border-purple-400/40 shadow-lg space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-purple-300 flex items-center gap-1.5">
+                          <Key className="w-4 h-4" />
+                          <span>Owner Gateway Alert:</span>
+                        </span>
+                        <span className={`text-[10px] font-mono font-bold flex items-center gap-1 px-2.5 py-0.5 rounded-full border ${
+                          ownerOtpSecondsLeft === 0
+                            ? 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse'
+                            : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                        }`}>
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{ownerOtpSecondsLeft}s left (65s OTP)</span>
+                        </span>
+                      </div>
+                      <div className="font-mono text-xl font-black text-gold-400">
+                        {ownerPreviewOtp}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAutoFillOwnerOtp}
+                        className="text-[11px] font-bold text-electric-300 underline cursor-pointer"
+                      >
+                        ⚡ 1-Tap Auto-Fill this OTP
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="text-center space-y-1">
+                    <p className="text-xs text-slate-300">Enter code sent to +91 9502714652:</p>
+                  </div>
+
+                  {/* 6 Digit Input Boxes */}
+                  <div className="flex items-center justify-center gap-2">
+                    {ownerOtpDigits.map((digit, idx) => (
+                      <input
+                        key={idx}
+                        type="text"
+                        maxLength={1}
+                        value={digit}
+                        disabled={ownerOtpSecondsLeft === 0}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9]/g, '').slice(-1);
+                          const updated = [...ownerOtpDigits];
+                          updated[idx] = val;
+                          setOwnerOtpDigits(updated);
+                        }}
+                        className="w-10 h-12 rounded-xl bg-void-950 border border-void-800 text-center text-lg font-mono font-bold text-white focus:border-purple-400 outline-none"
+                      />
+                    ))}
+                  </div>
+
+                  {ownerOtpError && (
+                    <p className="text-xs text-rose-400 font-medium text-center flex items-center justify-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {ownerOtpError}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isVerifyingOwnerOtp || ownerOtpDigits.join('').length !== 6 || ownerOtpSecondsLeft === 0}
+                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:brightness-110 text-white font-bold text-xs uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isVerifyingOwnerOtp ? (
+                      <>
+                        <RotateCcw className="w-4 h-4 animate-spin" />
+                        <span>Verifying Owner Credentials...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Unlock className="w-4 h-4" />
+                        <span>Verify OTP &amp; Unlock Command Center</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="text-center pt-1">
+                    <button
+                      type="button"
+                      onClick={handleSendOwnerOtp}
+                      className="text-xs text-gold-400 hover:underline cursor-pointer"
+                    >
+                      Resend Owner OTP (65s)
+                    </button>
+                  </div>
+                </form>
               )}
             </div>
+          ) : (
+            <form onSubmit={handlePasscodeSubmit} className="space-y-4">
+              <div>
+                <input
+                  type="password"
+                  value={passcodeInput}
+                  onChange={e => setPasscodeInput(e.target.value)}
+                  placeholder="Enter Master Passcode (e.g. 9502714652)"
+                  className="w-full px-4 py-3 rounded-xl bg-void-950 border border-void-800 focus:border-gold-400 text-white placeholder-slate-500 text-center font-mono tracking-widest text-lg outline-none transition-all"
+                  autoFocus
+                />
+                {passcodeError && (
+                  <p className="text-xs text-rose-400 font-medium mt-2 flex items-center justify-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" /> {passcodeError}
+                  </p>
+                )}
+              </div>
 
-            <button
-              type="submit"
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 hover:from-gold-400 hover:to-amber-500 text-void-950 font-bold text-sm tracking-wide shadow-lg shadow-gold-500/20 transition-all flex items-center justify-center gap-2"
-            >
-              <Unlock className="w-4 h-4" />
-              Unlock Owner Dashboard
-            </button>
-          </form>
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 hover:from-gold-400 hover:to-amber-500 text-void-950 font-bold text-sm tracking-wide shadow-lg shadow-gold-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Unlock className="w-4 h-4" />
+                Unlock Owner Dashboard
+              </button>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    sound.playClick();
+                    setIsOwnerOtpMode(true);
+                    setPasscodeError(null);
+                    setOwnerOtpSent(false);
+                  }}
+                  className="text-xs text-slate-400 hover:text-gold-300 transition-colors inline-flex items-center gap-1.5 cursor-pointer underline"
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-gold-400" />
+                  <span>Forgot Passcode? <strong>Unlock with 65s OTP (+91 9502714652)</strong></span>
+                </button>
+              </div>
+            </form>
+          )}
 
           <div className="pt-4 border-t border-void-800 text-xs text-slate-500">
             Official Owner UPI ID: <code className="text-gold-400">9502714652@axl</code>
@@ -644,12 +931,14 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
                           onClick={() => {
                             sound.playClick();
                             setSelectedUserForPassword(user);
+                            setNewPasswordInput('');
+                            setCopiedPw(false);
                           }}
                           className="px-2.5 py-1 rounded-lg bg-void-850 hover:bg-void-800 border border-void-700 text-slate-300 text-[11px] font-medium transition-colors"
-                          title="Set Password for Multi-Device Login"
+                          title="Manage & Reset Password for Multi-Device Access"
                         >
-                          <Key className="w-3 h-3 inline mr-1" />
-                          Set PW
+                          <Key className="w-3 h-3 inline mr-1 text-gold-400" />
+                          {user.passwordHash ? 'Reset PW' : 'Set PW'}
                         </button>
                         <button
                           onClick={() => handleToggleVipForUser(user)}
@@ -803,50 +1092,126 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
         </div>
       </div>
 
-      {/* QUICK PASSWORD MODAL */}
+      {/* QUICK PASSWORD & ADMIN OVERRIDE MODAL */}
       {selectedUserForPassword && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-void-950/80 backdrop-blur-md">
-          <div className="w-full max-w-md p-6 rounded-3xl bg-void-900 border border-gold-500/40 shadow-2xl space-y-4">
+          <div className="w-full max-w-md p-6 rounded-3xl bg-void-900 border border-gold-500/40 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-void-800 pb-3">
-              <h3 className="font-display font-bold text-white text-base flex items-center gap-2">
-                <Key className="w-4 h-4 text-gold-400" />
-                Set Password for Multi-Device Sync
-              </h3>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-gold-500/15 border border-gold-500/40 flex items-center justify-center text-gold-400">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-white text-sm">
+                    {selectedUserForPassword.passwordHash ? 'Admin Password Override' : 'Configure Multi-Device Password'}
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    Reader: <span className="text-gold-400 font-mono font-bold">{selectedUserForPassword.name}</span> ({selectedUserForPassword.readerId})
+                  </p>
+                </div>
+              </div>
               <button
-                onClick={() => setSelectedUserForPassword(null)}
-                className="text-slate-400 hover:text-white text-xs"
+                onClick={() => {
+                  setSelectedUserForPassword(null);
+                  setNewPasswordInput('');
+                  setPasswordSuccessMsg(null);
+                }}
+                className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded-lg hover:bg-void-800 transition-colors"
               >
-                Close
+                ✕ Close
               </button>
             </div>
 
-            <p className="text-xs text-slate-400">
-              User: <strong>{selectedUserForPassword.name}</strong> ({selectedUserForPassword.readerId})
-              <br />
-              Setting a password lets this user log in from any phone, laptop, or tablet without losing their VIP membership.
-            </p>
+            <div className="p-3 rounded-xl bg-void-950 border border-void-800 text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 text-[11px]">Current Access State:</span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  selectedUserForPassword.passwordHash
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                }`}>
+                  {selectedUserForPassword.passwordHash ? 'Password Active' : 'OTP-Only Access'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Admins can directly set or reset this reader's password, generate a temporary password, or clear the password to revert to OTP verification.
+              </p>
+            </div>
 
             {passwordSuccessMsg ? (
-              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-semibold">
-                {passwordSuccessMsg}
+              <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-2">
+                <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>{passwordSuccessMsg}</span>
               </div>
             ) : (
-              <form onSubmit={handleSetUserPassword} className="space-y-3">
-                <input
-                  type="password"
-                  placeholder="Enter new password (min 4 characters)"
-                  value={newPasswordInput}
-                  onChange={e => setNewPasswordInput(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-void-950 border border-void-800 text-white text-xs outline-none focus:border-gold-400"
-                  autoFocus
-                />
-                <button
-                  type="submit"
-                  disabled={!newPasswordInput || newPasswordInput.length < 4}
-                  className="w-full py-2.5 rounded-xl bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-void-950 font-bold text-xs transition-all"
-                >
-                  Save &amp; Enable Multi-Device Login
-                </button>
+              <form onSubmit={handleSetUserPassword} className="space-y-4">
+                {/* Admin Quick Action Toolbar */}
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={handleGenerateRandomPassword}
+                    className="px-3 py-1.5 rounded-xl bg-purple-950/40 border border-purple-500/30 hover:border-purple-400 text-purple-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    <span>🎲 Generate Temp PW</span>
+                  </button>
+
+                  {newPasswordInput && (
+                    <button
+                      type="button"
+                      onClick={handleCopyPassword}
+                      className="px-3 py-1.5 rounded-xl bg-void-950 border border-void-800 hover:border-gold-500/40 text-slate-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {copiedPw ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-gold-400" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                    {selectedUserForPassword.passwordHash ? 'New Password' : 'Create Account Password'} <span className="text-gold-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter new password (e.g. SUKA-8842 or min 4 chars)..."
+                    value={newPasswordInput}
+                    onChange={e => setNewPasswordInput(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-void-950 border border-void-800 text-white font-mono text-xs outline-none focus:border-gold-400 transition-colors"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={!newPasswordInput || newPasswordInput.length < 4}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 hover:brightness-110 disabled:opacity-50 text-void-950 font-bold text-xs uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Key className="w-4 h-4" />
+                    <span>Save &amp; Synchronize Password</span>
+                  </button>
+
+                  {selectedUserForPassword.passwordHash && (
+                    <button
+                      type="button"
+                      onClick={handleClearUserPassword}
+                      className="w-full py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Clear Password (Revert User to 65s OTP)</span>
+                    </button>
+                  )}
+                </div>
               </form>
             )}
           </div>

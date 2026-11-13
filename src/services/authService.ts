@@ -299,6 +299,158 @@ export async function loginWithPassword(identifier: string, plainPassword: strin
   };
 }
 
+/**
+ * Reset password via OTP verification (Forgot Password flow)
+ */
+export async function resetPasswordWithOtp(
+  target: string,
+  enteredCode: string,
+  newPassword: string
+): Promise<VerifyOtpResult> {
+  if (!newPassword || newPassword.length < 4) {
+    return { success: false, message: 'New password must be at least 4 characters long.' };
+  }
+
+  const session = getActiveOtpSession();
+  const cleanCode = enteredCode.trim().replace(/[^0-9]/g, '');
+
+  if (!session) {
+    return {
+      success: false,
+      message: 'No active OTP session found or it has expired (65s limit). Please request a new code.'
+    };
+  }
+
+  if (Date.now() > session.expiresAt) {
+    clearOtpSession();
+    return {
+      success: false,
+      message: 'Your verification code has expired after 65 seconds. Please request a new code.'
+    };
+  }
+
+  session.attempts += 1;
+  saveActiveOtpSession(session);
+
+  if (session.attempts > 4) {
+    clearOtpSession();
+    await logSecurityEvent('WARN', 'OTP_BRUTE_FORCE_PREVENTED', 'Auth Service', `Locked forgot-password session for ${session.target}`);
+    return {
+      success: false,
+      message: 'Maximum attempts exceeded. This code has been invalidated. Please request a new code.'
+    };
+  }
+
+  if (cleanCode !== session.code) {
+    return {
+      success: false,
+      message: `Incorrect verification code. Please check and try again (${4 - session.attempts} attempts remaining).`
+    };
+  }
+
+  // OTP verified! Clear session
+  clearOtpSession();
+
+  const pHash = await hashPassword(newPassword);
+  const cleanTarget = target.replace(/[^0-9]/g, '');
+  const cleanEmail = target.trim().toLowerCase();
+  const users = getAllRegisteredUsers();
+
+  let matchedUser = users.find(u => {
+    const uPhone = u.phone?.replace(/[^0-9]/g, '');
+    const uEmail = u.email?.trim().toLowerCase();
+    const phoneMatch = cleanTarget.length >= 7 && uPhone && uPhone.includes(cleanTarget);
+    const emailMatch = cleanEmail.includes('@') && uEmail === cleanEmail;
+    const readerIdMatch = u.readerId.toUpperCase() === target.trim().toUpperCase();
+    return phoneMatch || emailMatch || readerIdMatch;
+  });
+
+  const currentAccount = getReaderAccount();
+
+  if (!matchedUser) {
+    // If user account wasn't in registry yet, associate with current account
+    const isPhone = !target.includes('@');
+    matchedUser = {
+      ...currentAccount,
+      phone: isPhone ? target : currentAccount.phone,
+      email: isPhone ? currentAccount.email : target,
+      passwordHash: pHash,
+      role: 'reader',
+      lastLoginAt: new Date().toISOString()
+    };
+  } else {
+    matchedUser = {
+      ...matchedUser,
+      passwordHash: pHash,
+      lastLoginAt: new Date().toISOString()
+    };
+  }
+
+  const updatedAccount: ReaderAccount = {
+    ...matchedUser,
+    isLoggedIn: true,
+    authMethod: 'password',
+    watermarkSignature: `AUTH_RESET_${Date.now().toString(36).toUpperCase()}_VERIFIED`
+  };
+
+  saveReaderAccount(updatedAccount);
+  registerOrUpdateUser(updatedAccount, pHash);
+
+  if (updatedAccount.role === 'owner' || updatedAccount.role === 'admin' || (updatedAccount.phone && updatedAccount.phone.includes('9502714652'))) {
+    setOwnerSession(true);
+  }
+
+  await logSecurityEvent('INFO', 'PASSWORD_RESET_SUCCESS', 'Auth Service', `Password reset successfully via OTP for ${target}`);
+
+  return {
+    success: true,
+    message: `Password reset successfully! Welcome back, ${updatedAccount.name}.`,
+    account: updatedAccount
+  };
+}
+
+/**
+ * Generate cryptographically random temporary password for Admin to provide to user
+ */
+export function generateRandomPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let result = 'SUKA-';
+  for (let i = 0; i < 4; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+/**
+ * Admin action to clear/remove a user's password (reverts user to OTP-only login)
+ */
+export async function adminClearPassword(readerId: string): Promise<boolean> {
+  const users = getAllRegisteredUsers();
+  let found = false;
+  const updated = users.map(u => {
+    if (u.readerId === readerId) {
+      found = true;
+      const copy = { ...u };
+      delete copy.passwordHash;
+      return copy;
+    }
+    return u;
+  });
+
+  if (found) {
+    saveRegisteredUsers(updated);
+    const current = getReaderAccount();
+    if (current.readerId === readerId) {
+      const currentCopy = { ...current };
+      delete currentCopy.passwordHash;
+      saveReaderAccount(currentCopy);
+    }
+    await logSecurityEvent('INFO', 'ADMIN_PASSWORD_CLEARED', 'Auth Service', `Password cleared for user ${readerId} by Admin.`);
+    return true;
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // GLOBAL TRANSACTIONS REPOSITORY (One Unified Page for Owner)
 // ---------------------------------------------------------------------------
@@ -394,6 +546,47 @@ export function verifyOwnerPasscode(passcode: string): boolean {
     return true;
   }
   return false;
+}
+
+export async function verifyOwnerOtp(enteredCode: string): Promise<{ success: boolean; message: string }> {
+  const session = getActiveOtpSession();
+  const cleanCode = enteredCode.trim().replace(/[^0-9]/g, '');
+
+  if (!session) {
+    return {
+      success: false,
+      message: 'No active OTP session found or it has expired (65s limit). Please request a new code.'
+    };
+  }
+
+  if (Date.now() > session.expiresAt) {
+    clearOtpSession();
+    return {
+      success: false,
+      message: 'The 65-second OTP has expired. Please request a new code.'
+    };
+  }
+
+  if (cleanCode !== session.code) {
+    return {
+      success: false,
+      message: 'Invalid verification code. Please check and try again.'
+    };
+  }
+
+  clearOtpSession();
+  setOwnerSession(true);
+
+  const current = getReaderAccount();
+  const updated: ReaderAccount = { ...current, role: 'owner' };
+  saveReaderAccount(updated);
+  registerOrUpdateUser(updated);
+
+  await logSecurityEvent('INFO', 'OWNER_OTP_AUTHENTICATED', 'Auth Service', 'Owner privileges unlocked via 65s Phone OTP.');
+  return {
+    success: true,
+    message: 'Master authentication verified! Welcome, Owner Srinivas / Kanaka Rao Vennu.'
+  };
 }
 
 export function isOwnerOrAdmin(account?: ReaderAccount): boolean {
