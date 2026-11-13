@@ -17,10 +17,11 @@ import {
   Crown,
   Calendar,
   Lock,
-  CreditCard
+  CreditCard,
+  Clock
 } from 'lucide-react';
 import { ReaderAccount, Chapter } from '../../types';
-import { sendPhoneOtp, sendEmailOtp, verifyOtpAndLogin, logoutReaderAccount } from '../../services/authService';
+import { sendPhoneOtp, sendEmailOtp, verifyOtpAndLogin, logoutReaderAccount, OTP_VALIDITY_SECONDS } from '../../services/authService';
 import { sound } from '../../data/soundEffects';
 
 interface UsersPageProps {
@@ -62,12 +63,13 @@ export const UsersPage: React.FC<UsersPageProps> = ({
   const [isSending, setIsSending] = useState<boolean>(false);
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [resendCooldown, setResendCooldown] = useState<number>(0);
+  const [otpSecondsLeft, setOtpSecondsLeft] = useState<number>(OTP_VALIDITY_SECONDS);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Timer countdown
+  // Timer countdown for resending OTP
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const interval = setInterval(() => {
@@ -75,6 +77,21 @@ export const UsersPage: React.FC<UsersPageProps> = ({
     }, 1000);
     return () => clearInterval(interval);
   }, [resendCooldown]);
+
+  // Strict OTP Expiry Timer (Exactly 65 seconds)
+  useEffect(() => {
+    if (!otpSent || otpSecondsLeft <= 0) return;
+    const interval = setInterval(() => {
+      setOtpSecondsLeft((prev) => {
+        if (prev <= 1) {
+          setErrorMessage('Your OTP has expired (valid for 65 seconds only). Please request a new code.');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [otpSent, otpSecondsLeft]);
 
   const isUserLoggedIn = !!readerAccount.isLoggedIn;
   const isMember = readerAccount.membershipStatus === 'monthly_member';
@@ -99,7 +116,8 @@ export const UsersPage: React.FC<UsersPageProps> = ({
         if (res.success) {
           setOtpSent(true);
           setPreviewOtp(res.session?.simulatedPreviewOtp || null);
-          setResendCooldown(30);
+          setOtpSecondsLeft(OTP_VALIDITY_SECONDS);
+          setResendCooldown(OTP_VALIDITY_SECONDS);
           setSuccessMessage(res.message);
           sound.playCelestialChime();
         } else {
@@ -110,7 +128,8 @@ export const UsersPage: React.FC<UsersPageProps> = ({
         if (res.success) {
           setOtpSent(true);
           setPreviewOtp(res.session?.simulatedPreviewOtp || null);
-          setResendCooldown(30);
+          setOtpSecondsLeft(OTP_VALIDITY_SECONDS);
+          setResendCooldown(OTP_VALIDITY_SECONDS);
           setSuccessMessage(res.message);
           sound.playCelestialChime();
         } else {
@@ -363,7 +382,16 @@ export const UsersPage: React.FC<UsersPageProps> = ({
                       <KeyRound className="w-4 h-4" />
                       <span>Simulated Gateway Notification</span>
                     </span>
-                    <span className="text-[10px] font-mono text-emerald-400 font-bold">Valid for 5 mins</span>
+                    <span className={`text-[10px] font-mono font-bold flex items-center gap-1 px-2.5 py-0.5 rounded-full border ${
+                      otpSecondsLeft === 0
+                        ? 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse'
+                        : otpSecondsLeft <= 20
+                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse'
+                        : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                    }`}>
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{otpSecondsLeft === 0 ? 'EXPIRED (00:00)' : `Valid for ${Math.floor(otpSecondsLeft / 60)}:${(otpSecondsLeft % 60).toString().padStart(2, '0')} (65s)`}</span>
+                    </span>
                   </div>
                   <div className="text-xs text-slate-200">
                     Your verification code is:{' '}
@@ -371,13 +399,19 @@ export const UsersPage: React.FC<UsersPageProps> = ({
                       {previewOtp}
                     </strong>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleAutoFillOtp}
-                    className="text-[11px] font-bold text-electric-300 hover:text-white underline cursor-pointer"
-                  >
-                    ⚡ Click to 1-Tap Auto-Fill this OTP
-                  </button>
+                  {otpSecondsLeft === 0 ? (
+                    <div className="text-xs text-red-400 font-semibold bg-red-950/40 border border-red-500/30 px-3 py-1.5 rounded-lg">
+                      ⚠️ This OTP has expired (65 seconds limit). Click "Resend Code" below to receive a new code.
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleAutoFillOtp}
+                      className="text-[11px] font-bold text-electric-300 hover:text-white underline cursor-pointer"
+                    >
+                      ⚡ Click to 1-Tap Auto-Fill this OTP
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -385,6 +419,9 @@ export const UsersPage: React.FC<UsersPageProps> = ({
                 <p className="text-xs text-slate-300">Enter the 6-digit code sent to:</p>
                 <p className="text-sm font-mono font-bold text-gold-400">
                   {authMethod === 'phone' ? `${countryCode} ${phoneNumber}` : emailAddress}
+                </p>
+                <p className="text-[10px] text-slate-400 font-mono">
+                  (OTP is strictly valid for 65 seconds only)
                 </p>
               </div>
 
@@ -397,9 +434,14 @@ export const UsersPage: React.FC<UsersPageProps> = ({
                     type="text"
                     maxLength={1}
                     value={digit}
+                    disabled={otpSecondsLeft === 0}
                     onChange={(e) => handleDigitChange(idx, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(idx, e)}
-                    className="w-12 h-14 sm:w-14 sm:h-16 rounded-2xl bg-void-950 border border-void-800 focus:border-gold-500 text-center text-2xl font-mono font-black text-white focus:outline-none focus:shadow-[0_0_20px_rgba(255,215,0,0.3)] transition-all"
+                    className={`w-12 h-14 sm:w-14 sm:h-16 rounded-2xl bg-void-950 border text-center text-2xl font-mono font-black transition-all ${
+                      otpSecondsLeft === 0
+                        ? 'border-red-900/50 text-slate-600 cursor-not-allowed opacity-60'
+                        : 'border-void-800 focus:border-gold-500 text-white focus:outline-none focus:shadow-[0_0_20px_rgba(255,215,0,0.3)]'
+                    }`}
                   />
                 ))}
               </div>
@@ -416,7 +458,7 @@ export const UsersPage: React.FC<UsersPageProps> = ({
                   Change {authMethod === 'phone' ? 'Phone Number' : 'Email'}
                 </button>
 
-                {resendCooldown > 0 ? (
+                {resendCooldown > 0 && otpSecondsLeft > 0 ? (
                   <span className="text-[11px] font-mono text-slate-500">
                     Resend code in {resendCooldown}s
                   </span>
@@ -424,16 +466,17 @@ export const UsersPage: React.FC<UsersPageProps> = ({
                   <button
                     type="button"
                     onClick={handleSendOtp}
-                    className="text-gold-400 hover:underline font-bold"
+                    className="text-gold-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
                   >
-                    Resend Code
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Resend Code (65s OTP)</span>
                   </button>
                 )}
               </div>
 
               <button
                 type="button"
-                disabled={isVerifying || otpDigits.join('').length !== 6}
+                disabled={isVerifying || otpDigits.join('').length !== 6 || otpSecondsLeft === 0}
                 onClick={handleVerifyOtp}
                 className="w-full py-4 rounded-xl bg-gradient-to-r from-electric-500 via-cyan-500 to-teal-500 hover:brightness-110 text-void-950 font-display text-xs font-black uppercase tracking-wider shadow-[0_0_25px_rgba(0,229,255,0.3)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >

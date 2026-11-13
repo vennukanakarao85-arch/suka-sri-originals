@@ -9,6 +9,10 @@ import { getReaderAccount, saveReaderAccount } from './storage';
 import { logSecurityEvent } from './mangaVault';
 import { rateLimiter } from './securityShield';
 
+// Cryptographic constants
+export const OTP_VALIDITY_SECONDS = 65; // OTP is strictly valid for 65 seconds only
+export const OTP_EXPIRY_MS = OTP_VALIDITY_SECONDS * 1000;
+
 export interface OtpSession {
   target: string; // phone or email
   type: 'phone' | 'email';
@@ -25,6 +29,7 @@ export interface SendOtpResult {
     target: string;
     type: 'phone' | 'email';
     expiresAt: number;
+    validitySeconds: number;
     simulatedPreviewOtp?: string; // For instant testing & demo convenience
   };
   retryAfterSec?: number;
@@ -110,7 +115,7 @@ export async function sendPhoneOtp(
   }
 
   const otp = generateSecureOtp();
-  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+  const expiresAt = Date.now() + OTP_EXPIRY_MS; // Exactly 65 seconds
 
   const session: OtpSession = {
     target: fullPhone,
@@ -127,16 +132,17 @@ export async function sendPhoneOtp(
     'INFO',
     'OTP_SMS_DISPATCHED',
     'Auth Service',
-    `Dispatched 6-digit SMS OTP to ${fullPhone.slice(0, 7)}**** (Expires in 5m)`
+    `Dispatched 6-digit SMS OTP to ${fullPhone.slice(0, 7)}**** (Expires in 65s)`
   );
 
   return {
     success: true,
-    message: `Verification code sent to ${fullPhone}!`,
+    message: `Verification code sent to ${fullPhone}! Valid for 65 seconds only.`,
     session: {
       target: fullPhone,
       type: 'phone',
       expiresAt,
+      validitySeconds: OTP_VALIDITY_SECONDS,
       simulatedPreviewOtp: otp
     }
   };
@@ -167,7 +173,7 @@ export async function sendEmailOtp(email: string): Promise<SendOtpResult> {
   }
 
   const otp = generateSecureOtp();
-  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+  const expiresAt = Date.now() + OTP_EXPIRY_MS; // Exactly 65 seconds
 
   const session: OtpSession = {
     target: cleanEmail,
@@ -184,16 +190,17 @@ export async function sendEmailOtp(email: string): Promise<SendOtpResult> {
     'INFO',
     'OTP_EMAIL_DISPATCHED',
     'Auth Service',
-    `Dispatched 6-digit verification code to ${cleanEmail.slice(0, 3)}***@*** (Expires in 5m)`
+    `Dispatched 6-digit verification code to ${cleanEmail.slice(0, 3)}***@*** (Expires in 65s)`
   );
 
   return {
     success: true,
-    message: `Verification code sent to ${cleanEmail}!`,
+    message: `Verification code sent to ${cleanEmail}! Valid for 65 seconds only.`,
     session: {
       target: cleanEmail,
       type: 'email',
       expiresAt,
+      validitySeconds: OTP_VALIDITY_SECONDS,
       simulatedPreviewOtp: otp
     }
   };
@@ -214,7 +221,7 @@ export async function verifyOtpAndLogin(
   if (!session) {
     return {
       success: false,
-      message: 'No active OTP session found or it has expired. Please request a new code.'
+      message: 'No active OTP session found or it has expired (65s limit). Please request a new code.'
     };
   }
 
@@ -222,7 +229,7 @@ export async function verifyOtpAndLogin(
     clearOtpSession();
     return {
       success: false,
-      message: 'Your verification code has expired. Please request a new one.'
+      message: 'Your verification code has expired after 65 seconds. Please request a new code.'
     };
   }
 
