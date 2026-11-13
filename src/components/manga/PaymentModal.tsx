@@ -54,6 +54,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [copiedUpi, setCopiedUpi] = useState<boolean>(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [qrViewMode, setQrViewMode] = useState<'dynamic' | 'poster'>('dynamic');
+  const [upiStatusNotice, setUpiStatusNotice] = useState<string | null>(null);
 
   // Card state (International)
   const [cardNumber, setCardNumber] = useState<string>('');
@@ -81,6 +82,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // Standard NPCI Dynamic UPI Deep Link Intent
   const dynamicUpiUri = `upi://pay?pa=${officialUpiId}&pn=${encodeURIComponent(payeeName)}&mc=0000&mode=02&purpose=00&am=${currentAmount}.00&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
+
+  // Dedicated direct deep link generators for PhonePe, GPay, Paytm, and BHIM
+  const getAppUpiUri = (app: string): string => {
+    const params = `pa=${officialUpiId}&pn=${encodeURIComponent(payeeName)}&mc=0000&mode=02&purpose=00&am=${currentAmount}.00&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
+    switch (app) {
+      case 'PhonePe':
+        return `phonepe://pay?${params}`;
+      case 'Google Pay':
+        return `tez://upi/pay?${params}`;
+      case 'Paytm':
+        return `paytmmp://pay?${params}`;
+      case 'BHIM':
+        return `bhim://pay?${params}`;
+      default:
+        return `upi://pay?${params}`;
+    }
+  };
 
   // Synchronize state when modal opens or mode changes
   useEffect(() => {
@@ -430,71 +448,134 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
                     {/* Supported Apps, Mobile Direct Link, and UPI Details */}
                     <div className="sm:col-span-7 space-y-3">
+                      
                       {/* Direct Mobile UPI Intent Button */}
                       <a
                         href={dynamicUpiUri}
-                        onClick={() => sound.playClick()}
-                        className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:brightness-110 text-white font-display text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all cursor-pointer text-center"
+                        onClick={() => {
+                          sound.playClick();
+                          try {
+                            navigator.clipboard.writeText(officialUpiId);
+                            setCopiedUpi(true);
+                            setTimeout(() => setCopiedUpi(false), 2500);
+                          } catch {}
+                          setUpiStatusNotice(`Launching UPI app... UPI ID ${officialUpiId} auto-copied!`);
+                          setTimeout(() => setUpiStatusNotice(null), 4000);
+                        }}
+                        className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:brightness-110 text-white font-display text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(147,51,234,0.35)] transition-all cursor-pointer text-center active:scale-95 group"
                       >
-                        <Smartphone className="w-4 h-4" />
+                        <Smartphone className="w-4 h-4 text-purple-200 group-hover:scale-110 transition-transform" />
                         <span>Pay ₹{currentAmount} with UPI App</span>
-                        <ArrowUpRight className="w-3.5 h-3.5" />
+                        <ArrowUpRight className="w-4 h-4 text-purple-200" />
                       </a>
 
-                      {/* Merchant UPI ID Copy Row */}
+                      {/* Merchant UPI ID Copy Row (Fully Clickable & Accessible) */}
                       <div>
                         <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
-                          <span>Payee VPA / UPI ID:</span>
-                          <span className="text-[10px] font-mono text-emerald-400 font-bold">Auto-Linked</span>
+                          <span className="font-semibold text-slate-300">Payee VPA / UPI ID:</span>
+                          <span className="text-[10px] font-mono text-emerald-400 font-bold flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            Auto-Linked
+                          </span>
                         </div>
-                        <div className="flex items-center justify-between bg-void-900 border border-void-800 rounded-xl px-3 py-2 text-xs">
-                          <code className="text-gold-400 font-mono font-bold select-all">
-                            {officialUpiId}
-                          </code>
-                          <button
-                            type="button"
-                            onClick={handleCopyUpi}
-                            className="p-1 rounded text-slate-400 hover:text-white"
-                            title="Copy UPI ID"
-                          >
-                            {copiedUpi ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                          </button>
+                        <div
+                          onClick={handleCopyUpi}
+                          title="Click to copy UPI ID"
+                          className="flex items-center justify-between bg-void-900 hover:bg-void-850 border border-void-800 hover:border-gold-500/50 rounded-xl px-3.5 py-2.5 text-xs cursor-pointer transition-all group shadow-inner"
+                        >
+                          <div className="flex items-center gap-2">
+                            <code className="text-gold-400 group-hover:text-gold-300 font-mono font-bold select-all text-sm tracking-wide">
+                              {officialUpiId}
+                            </code>
+                            {copiedUpi && (
+                              <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30 animate-fade-in">
+                                Copied!
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-slate-400 group-hover:text-white">
+                            <span className="text-[10px] uppercase font-bold text-slate-500 group-hover:text-slate-300">
+                              {copiedUpi ? 'Copied' : 'Copy'}
+                            </span>
+                            {copiedUpi ? (
+                              <Check className="w-4 h-4 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-4 h-4 group-hover:scale-110 transition-transform text-gold-400" />
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      {/* Supported UPI Apps */}
+                      {/* Interactive Supported UPI Apps (Tap to Launch App) */}
                       <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1.5">
-                          Supported UPI Apps:
-                        </span>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                            Supported UPI Apps (Tap to Open):
+                          </span>
+                          <span className="text-[9px] text-slate-500 font-mono">Instant Deep Link</span>
+                        </div>
                         <div className="grid grid-cols-4 gap-1.5 text-center">
-                          {['PhonePe', 'Google Pay', 'Paytm', 'BHIM'].map((app) => (
-                            <div
-                              key={app}
-                              className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold ${
-                                app === 'PhonePe'
-                                  ? 'bg-purple-950/60 border-purple-500/40 text-purple-300'
-                                  : 'bg-void-900 border-void-800 text-slate-300'
-                              }`}
+                          {[
+                            { name: 'PhonePe', color: 'hover:bg-purple-900/40 text-purple-300 border-purple-500/40 bg-purple-950/40' },
+                            { name: 'Google Pay', color: 'hover:bg-blue-900/40 text-blue-300 border-blue-500/40 bg-blue-950/40' },
+                            { name: 'Paytm', color: 'hover:bg-cyan-900/40 text-cyan-300 border-cyan-500/40 bg-cyan-950/40' },
+                            { name: 'BHIM', color: 'hover:bg-amber-900/40 text-amber-300 border-amber-500/40 bg-amber-950/40' },
+                          ].map((app) => (
+                            <a
+                              key={app.name}
+                              href={getAppUpiUri(app.name)}
+                              onClick={() => {
+                                sound.playClick();
+                                try {
+                                  navigator.clipboard.writeText(officialUpiId);
+                                  setCopiedUpi(true);
+                                  setTimeout(() => setCopiedUpi(false), 2500);
+                                } catch {}
+                                setUpiStatusNotice(`Opening ${app.name}... UPI ID ${officialUpiId} auto-copied!`);
+                                setTimeout(() => setUpiStatusNotice(null), 4000);
+                              }}
+                              className={`px-2 py-2 rounded-xl border text-[11px] font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95 shadow-sm hover:shadow-[0_0_12px_rgba(255,215,0,0.2)] ${app.color}`}
+                              title={`Pay ₹${currentAmount} directly using ${app.name}`}
                             >
-                              {app}
-                            </div>
+                              <span className="leading-tight font-display">{app.name}</span>
+                              <span className="text-[8px] text-slate-400 uppercase tracking-tighter">Pay ↗</span>
+                            </a>
                           ))}
                         </div>
                       </div>
 
+                      {/* Toast status banner when UPI action is triggered */}
+                      {upiStatusNotice && (
+                        <div className="p-2.5 rounded-xl bg-purple-950/90 border border-purple-400/50 text-purple-200 text-xs flex items-center justify-between animate-fade-in shadow-md">
+                          <span className="flex items-center gap-2">
+                            <Smartphone className="w-4 h-4 text-purple-400 animate-bounce" />
+                            <span className="font-medium">{upiStatusNotice}</span>
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-mono font-bold">Auto-Linked</span>
+                        </div>
+                      )}
+
                       {/* Optional UPI Ref Input */}
                       <div>
-                        <label className="text-[11px] text-slate-400 block mb-1">
-                          UPI UTR / 12-Digit Reference No. (Optional):
-                        </label>
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+                          <span>UPI UTR / 12-Digit Reference No. (Optional):</span>
+                          <span className="text-[9px] text-slate-500 font-mono">Press Enter to Submit</span>
+                        </div>
                         <input
                           type="text"
                           placeholder="e.g. 418293847291"
                           value={upiRefInput}
                           onChange={(e) => setUpiRefInput(e.target.value)}
-                          className="w-full bg-void-900 border border-void-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-gold-500 font-mono"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleProcessPayment();
+                            }
+                          }}
+                          className="w-full bg-void-900 border border-void-800 focus:border-gold-500 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:shadow-[0_0_15px_rgba(255,215,0,0.2)] font-mono transition-all"
                         />
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          Enter your bank transaction reference or click Complete Subscription below to activate access immediately.
+                        </p>
                       </div>
                     </div>
                   </div>
