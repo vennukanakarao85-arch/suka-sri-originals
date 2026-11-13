@@ -83,7 +83,7 @@ function initializeDefaultRegistry(): ReaderAccount[] {
   expiry.setDate(expiry.getDate() + 30);
 
   const defaultUser: ReaderAccount = {
-    readerId: 'SSRI-READER-8842',
+    readerId: 'SSO-READER-000',
     name: 'Srinivas Vennu (Owner)',
     email: 'reader@sukasri.universe',
     phone: '+91 9502714652',
@@ -99,8 +99,8 @@ function initializeDefaultRegistry(): ReaderAccount[] {
     unlockedChapterIds: ['sample-ch-001', 'ch-1', 'ch-001'],
     transactions: [
       {
-        id: 'TXN-MEM-INIT-8842',
-        readerId: 'SSRI-READER-8842',
+        id: 'TXN-MEM-INIT-000',
+        readerId: 'SSO-READER-000',
         chapterTitle: 'SUKA SRI Monthly All-Access VIP Membership (All Arcs & Chapters)',
         type: 'monthly_membership',
         amount: 19,
@@ -112,10 +112,16 @@ function initializeDefaultRegistry(): ReaderAccount[] {
         upiRefNumber: '431890284712'
       }
     ],
-    watermarkSignature: 'SECURE-HMAC-256-AUTH-SSRI-2026'
+    watermarkSignature: 'SECURE-HMAC-256-AUTH-SSO-2026'
   };
 
   return [defaultUser];
+}
+
+export function generateReaderId(): string {
+  const users = getAllRegisteredUsers();
+  const nextNum = users.length;
+  return `SSO-READER-${String(nextNum).padStart(3, '0')}`;
 }
 
 export function getAllRegisteredUsers(): ReaderAccount[] {
@@ -127,7 +133,24 @@ export function getAllRegisteredUsers(): ReaderAccount[] {
       return defaults;
     }
     const users: ReaderAccount[] = JSON.parse(raw);
-    return Array.isArray(users) ? users : initializeDefaultRegistry();
+    if (Array.isArray(users)) {
+      let modified = false;
+      const normalized = users.map(u => {
+        if (u.readerId && (u.readerId.includes('SSRI-READER-') || u.readerId === 'SSRI-READER-8842')) {
+          modified = true;
+          return {
+            ...u,
+            readerId: u.readerId.replace('SSRI-READER-8842', 'SSO-READER-000').replace('SSRI-READER-', 'SSO-READER-')
+          };
+        }
+        return u;
+      });
+      if (modified) {
+        saveRegisteredUsers(normalized);
+      }
+      return normalized;
+    }
+    return initializeDefaultRegistry();
   } catch {
     return initializeDefaultRegistry();
   }
@@ -461,8 +484,8 @@ export function getAllTransactions(): PaymentTransaction[] {
       // Seed with initial ledger
       const initialTx: PaymentTransaction[] = [
         {
-          id: 'TXN-MEM-8842-INIT',
-          readerId: 'SSRI-READER-8842',
+          id: 'TXN-MEM-000-INIT',
+          readerId: 'SSO-READER-000',
           chapterTitle: 'SUKA SRI Monthly VIP Membership (All Arcs & Chapters Access)',
           type: 'monthly_membership',
           amount: 19,
@@ -475,7 +498,7 @@ export function getAllTransactions(): PaymentTransaction[] {
         },
         {
           id: 'TXN-CHP-001-CANON',
-          readerId: 'SSRI-READER-8842',
+          readerId: 'SSO-READER-000',
           chapterId: 'sample-ch-001',
           chapterTitle: 'Ch. 1: Celestial Awakening — The Origin Flame',
           type: 'chapter_purchase',
@@ -492,7 +515,13 @@ export function getAllTransactions(): PaymentTransaction[] {
       return initialTx;
     }
     const list: PaymentTransaction[] = JSON.parse(raw);
-    return Array.isArray(list) ? list : [];
+    if (Array.isArray(list)) {
+      return list.map(t => ({
+        ...t,
+        readerId: t.readerId ? t.readerId.replace('SSRI-READER-8842', 'SSO-READER-000').replace('SSRI-READER-', 'SSO-READER-') : 'SSO-READER-000'
+      }));
+    }
+    return [];
   } catch {
     return [];
   }
@@ -829,8 +858,13 @@ export async function verifyOtpAndLogin(
   const cleanTargetPhone = isPhone ? session.target : currentAccount.phone;
   const isOwnerNumber = cleanTargetPhone && cleanTargetPhone.replace(/[^0-9]/g, '').includes('9502714652');
 
+  const readerId = currentAccount.readerId
+    ? currentAccount.readerId.replace('SSRI-READER-8842', 'SSO-READER-000').replace('SSRI-READER-', 'SSO-READER-')
+    : generateReaderId();
+
   const updatedAccount: ReaderAccount = {
     ...currentAccount,
+    readerId: isOwnerNumber ? 'SSO-READER-000' : readerId,
     name: name?.trim() || currentAccount.name !== 'Valued Manga Reader' ? (name?.trim() || currentAccount.name) : defaultName,
     email: isPhone ? currentAccount.email : session.target,
     phone: cleanTargetPhone,

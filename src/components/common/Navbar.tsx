@@ -16,11 +16,13 @@ import {
   Eye,
   MoreHorizontal,
   ChevronRight,
+  ChevronDown,
   Sliders,
   Layers,
   Key,
   Lock,
   Unlock,
+  Users
 } from 'lucide-react';
 import { sound } from '../../data/soundEffects';
 import { Logo3D } from './Logo3D';
@@ -60,11 +62,33 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isAmbientOn, setIsAmbientOn] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Simplified Menu Option Dropdowns (Universe & Worlds, Manga & Characters)
+  const [universeDropdownOpen, setUniverseDropdownOpen] = useState(false);
+  const [mangaDropdownOpen, setMangaDropdownOpen] = useState(false);
+  const universeDropdownRef = useRef<HTMLDivElement>(null);
+  const mangaDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Rotating Quotation Animation for Account User ID and Name
+  const [accountFlipMode, setAccountFlipMode] = useState<'name' | 'id'>('name');
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setAccountFlipMode((prev) => (prev === 'name' ? 'id' : 'name'));
+    }, 2800);
+    return () => clearInterval(timer);
+  }, []);
+
   // Close dropdown on click outside or escape key
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setMoreDropdownOpen(false);
+      }
+      if (universeDropdownRef.current && !universeDropdownRef.current.contains(event.target as Node)) {
+        setUniverseDropdownOpen(false);
+      }
+      if (mangaDropdownRef.current && !mangaDropdownRef.current.contains(event.target as Node)) {
+        setMangaDropdownOpen(false);
       }
     };
 
@@ -72,6 +96,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       if (event.key === 'Escape') {
         setMoreDropdownOpen(false);
         setMobileMenuOpen(false);
+        setUniverseDropdownOpen(false);
+        setMangaDropdownOpen(false);
       }
     };
 
@@ -175,31 +201,180 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Desktop Center Navigation - Clean Pill */}
+        {/* Desktop Center Navigation - Simplified Menu Bar */}
         <nav className="hidden lg:flex items-center bg-void-900/80 border border-void-800/90 rounded-full p-1 shadow-inner backdrop-blur-md">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
+          
+          {/* 1. UNIVERSE (with Worlds in Option Dropdown) */}
+          <div
+            className="relative"
+            ref={universeDropdownRef}
+            onMouseEnter={() => setUniverseDropdownOpen(true)}
+            onMouseLeave={() => setUniverseDropdownOpen(false)}
+          >
+            <div className="flex items-center">
               <button
-                key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase flex items-center gap-1.5 transition-all relative ${
-                  isActive
+                onClick={() => handleNavClick('home')}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
+                  activeTab === 'home' || activeTab === 'lore'
                     ? 'text-gold-400 bg-gold-500/15 border border-gold-500/30 shadow-[0_0_12px_rgba(255,215,0,0.2)]'
-                    : item.highlight
-                    ? 'text-electric-400 hover:text-white hover:bg-electric-500/10'
                     : 'text-slate-300 hover:text-white hover:bg-void-800/60'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-gold-400' : ''}`} />
-                <span>{item.label}</span>
-                {isActive && (
-                  <span className="w-1 h-1 rounded-full bg-gold-400 mx-auto" />
-                )}
+                <Sparkles className={`w-3.5 h-3.5 ${activeTab === 'home' || activeTab === 'lore' ? 'text-gold-400' : ''}`} />
+                <span>Universe</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${universeDropdownOpen ? 'rotate-180 text-gold-400' : 'text-slate-400'}`} />
               </button>
-            );
-          })}
+            </div>
+
+            {/* Universe & Worlds Option Menu */}
+            {universeDropdownOpen && (
+              <div className="absolute left-0 mt-2 w-52 rounded-2xl bg-void-950/95 border border-void-700/80 p-2 shadow-[0_15px_40px_rgba(0,0,0,0.85)] backdrop-blur-2xl z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                <button
+                  onClick={() => {
+                    handleNavClick('home');
+                    setUniverseDropdownOpen(false);
+                  }}
+                  className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
+                    activeTab === 'home'
+                      ? 'bg-gold-500/15 text-gold-400 border border-gold-500/30 font-bold'
+                      : 'text-slate-300 hover:bg-void-900 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5 text-gold-400" />
+                    <span>Cosmic Universe</span>
+                  </div>
+                  {activeTab === 'home' && <span className="w-1.5 h-1.5 rounded-full bg-gold-400" />}
+                </button>
+
+                <button
+                  onClick={() => {
+                    handleNavClick('lore');
+                    setUniverseDropdownOpen(false);
+                  }}
+                  className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center justify-between transition-colors mt-1 cursor-pointer ${
+                    activeTab === 'lore'
+                      ? 'bg-gold-500/15 text-gold-400 border border-gold-500/30 font-bold'
+                      : 'text-slate-300 hover:bg-void-900 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Compass className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Galactic Worlds</span>
+                  </div>
+                  {activeTab === 'lore' && <span className="w-1.5 h-1.5 rounded-full bg-gold-400" />}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 2. MANGA (with Characters in One Bar Option) */}
+          <div
+            className="relative"
+            ref={mangaDropdownRef}
+            onMouseEnter={() => setMangaDropdownOpen(true)}
+            onMouseLeave={() => setMangaDropdownOpen(false)}
+          >
+            <div className="flex items-center">
+              <button
+                onClick={() => handleNavClick('manga')}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
+                  activeTab === 'manga' || activeTab === 'characters'
+                    ? 'text-gold-400 bg-gold-500/15 border border-gold-500/30 shadow-[0_0_12px_rgba(255,215,0,0.2)]'
+                    : 'text-slate-300 hover:text-white hover:bg-void-800/60'
+                }`}
+              >
+                <BookOpen className={`w-3.5 h-3.5 ${activeTab === 'manga' || activeTab === 'characters' ? 'text-gold-400' : ''}`} />
+                <span>Manga</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${mangaDropdownOpen ? 'rotate-180 text-gold-400' : 'text-slate-400'}`} />
+              </button>
+            </div>
+
+            {/* Manga & Characters Option Menu */}
+            {mangaDropdownOpen && (
+              <div className="absolute left-0 mt-2 w-52 rounded-2xl bg-void-950/95 border border-void-700/80 p-2 shadow-[0_15px_40px_rgba(0,0,0,0.85)] backdrop-blur-2xl z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                <button
+                  onClick={() => {
+                    handleNavClick('manga');
+                    setMangaDropdownOpen(false);
+                  }}
+                  className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
+                    activeTab === 'manga'
+                      ? 'bg-gold-500/15 text-gold-400 border border-gold-500/30 font-bold'
+                      : 'text-slate-300 hover:bg-void-900 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-3.5 h-3.5 text-gold-400" />
+                    <span>Manga Chapters</span>
+                  </div>
+                  {activeTab === 'manga' && <span className="w-1.5 h-1.5 rounded-full bg-gold-400" />}
+                </button>
+
+                <button
+                  onClick={() => {
+                    handleNavClick('characters');
+                    setMangaDropdownOpen(false);
+                  }}
+                  className={`w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center justify-between transition-colors mt-1 cursor-pointer ${
+                    activeTab === 'characters'
+                      ? 'bg-gold-500/15 text-gold-400 border border-gold-500/30 font-bold'
+                      : 'text-slate-300 hover:bg-void-900 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Users className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Characters (93)</span>
+                  </div>
+                  {activeTab === 'characters' && <span className="w-1.5 h-1.5 rounded-full bg-gold-400" />}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 3. USERS */}
+          <button
+            onClick={() => handleNavClick('users')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'users'
+                ? 'text-gold-400 bg-gold-500/15 border border-gold-500/30 shadow-[0_0_12px_rgba(255,215,0,0.2)]'
+                : 'text-slate-300 hover:text-white hover:bg-void-800/60'
+            }`}
+          >
+            <User className={`w-3.5 h-3.5 ${activeTab === 'users' ? 'text-gold-400' : ''}`} />
+            <span>Users</span>
+          </button>
+
+          {/* 4. STUDIO (Owner Only) */}
+          {isOwner && (
+            <button
+              onClick={() => handleNavClick('studio')}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === 'studio'
+                  ? 'text-gold-400 bg-gold-500/15 border border-gold-500/30 shadow-[0_0_12px_rgba(255,215,0,0.2)]'
+                  : 'text-electric-400 hover:text-white hover:bg-electric-500/10'
+              }`}
+            >
+              <Edit3 className="w-3.5 h-3.5 text-electric-400" />
+              <span>Studio</span>
+              <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">Owner</span>
+            </button>
+          )}
+
+          {/* 5. ADMIN (Owner Only) */}
+          {isOwner && (
+            <button
+              onClick={() => handleNavClick('owner')}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === 'owner'
+                  ? 'text-gold-400 bg-gold-500/15 border border-gold-500/30 shadow-[0_0_12px_rgba(255,215,0,0.2)]'
+                  : 'text-purple-400 hover:text-white hover:bg-purple-500/10'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 text-purple-400" />
+              <span>Admin</span>
+            </button>
+          )}
         </nav>
 
         {/* Right Streamlined Action Hub */}
@@ -212,7 +387,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onOpenPricing();
             }}
             title="VIP Membership: Unlock all chapters for ₹19/mo ($0.50)"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-gradient-to-r from-gold-500/15 to-amber-500/20 text-gold-300 border border-gold-500/40 hover:border-gold-400 hover:shadow-[0_0_15px_rgba(255,215,0,0.25)] transition-all group"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-gradient-to-r from-gold-500/15 to-amber-500/20 text-gold-300 border border-gold-500/40 hover:border-gold-400 hover:shadow-[0_0_15px_rgba(255,215,0,0.25)] transition-all group cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-gold-400 group-hover:rotate-12 transition-transform" />
             <span className="font-display font-semibold">VIP ₹19</span>
@@ -224,7 +399,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={toggleAmbient}
               title={isAmbientOn ? 'Stop Ambient Atmosphere' : 'Play Ambient Music'}
-              className={`px-2 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase flex items-center gap-1 transition-all ${
+              className={`px-2 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase flex items-center gap-1 transition-all cursor-pointer ${
                 isAmbientOn
                   ? 'bg-violet-600/30 text-violet-300 border border-violet-500/50 shadow-[0_0_10px_rgba(138,43,226,0.3)]'
                   : 'text-slate-400 hover:text-slate-200'
@@ -237,29 +412,47 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={toggleMute}
               title={isAudioMuted ? 'Unmute Audio' : 'Mute Audio'}
-              className="p-1.5 rounded-full text-slate-400 hover:text-white transition-colors"
+              className="p-1.5 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
             >
               {isAudioMuted ? <VolumeX className="w-3.5 h-3.5 text-red-400" /> : <Volume2 className="w-3.5 h-3.5 text-electric-400" />}
             </button>
           </div>
 
-          {/* Reader Account / Sign In Pill */}
+          {/* Reader Account / Sign In Pill with Rotating Quotation Animation */}
           {readerAccount?.isLoggedIn ? (
             <button
               onClick={() => {
                 sound.playClick();
                 onOpenAccount();
               }}
-              title={`Logged in as ${readerAccount.name || readerAccount.phone || readerAccount.email || 'Reader'}`}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25 hover:border-emerald-400 transition-all shadow-[0_0_12px_rgba(16,185,129,0.2)] group"
+              title={`Logged in as ${readerAccount.name || 'Reader'} (${readerAccount.readerId || 'SSO-READER-000'})`}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25 hover:border-emerald-400 transition-all shadow-[0_0_12px_rgba(16,185,129,0.2)] group cursor-pointer relative overflow-hidden"
             >
-              <span className="relative flex h-2 w-2">
+              <span className="relative flex h-2 w-2 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="max-w-[110px] truncate font-medium">
-                {readerAccount.name || (readerAccount.phone ? `${readerAccount.countryCode || ''} ${readerAccount.phone.slice(-4)}` : 'Reader')}
-              </span>
+
+              {/* Animated Rotating Quotation between Name and Account User ID */}
+              <div className="min-w-[95px] max-w-[140px] h-4.5 flex items-center justify-start overflow-hidden relative">
+                {accountFlipMode === 'name' ? (
+                  <div key="name" className="flex items-center gap-0.5 text-emerald-300 animate-in fade-in slide-in-from-bottom-1 duration-300">
+                    <span className="font-serif italic text-emerald-400 text-xs font-bold leading-none">“</span>
+                    <span className="truncate font-semibold text-xs leading-none">
+                      {readerAccount.name || (readerAccount.phone ? `${readerAccount.countryCode || ''} ${readerAccount.phone.slice(-4)}` : 'Reader')}
+                    </span>
+                    <span className="font-serif italic text-emerald-400 text-xs font-bold leading-none">”</span>
+                  </div>
+                ) : (
+                  <div key="id" className="flex items-center gap-0.5 text-gold-400 animate-in fade-in slide-in-from-top-1 duration-300">
+                    <span className="font-serif italic text-gold-500 text-xs font-bold leading-none">“</span>
+                    <span className="font-mono font-bold text-[11px] tracking-wider leading-none">
+                      {readerAccount.readerId || 'SSO-READER-000'}
+                    </span>
+                    <span className="font-serif italic text-gold-500 text-xs font-bold leading-none">”</span>
+                  </div>
+                )}
+              </div>
             </button>
           ) : (
             <button
@@ -267,11 +460,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                 sound.playClick();
                 onOpenAccount();
               }}
-              title="Sign In with Phone or Email OTP"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-void-900 hover:bg-void-800 text-slate-200 hover:text-gold-300 border border-void-700 hover:border-gold-500/50 transition-all shadow-sm"
+              title="Sign In with Phone, Email or Password"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-void-900 hover:bg-void-800 text-slate-200 hover:text-gold-300 border border-void-700 hover:border-gold-500/50 transition-all shadow-sm cursor-pointer relative overflow-hidden"
             >
-              <User className="w-3.5 h-3.5 text-electric-400" />
-              <span>Sign In</span>
+              <User className="w-3.5 h-3.5 text-electric-400 shrink-0" />
+              <div className="min-w-[95px] max-w-[130px] h-4.5 flex items-center justify-start overflow-hidden relative">
+                {accountFlipMode === 'name' ? (
+                  <div key="guest-sign" className="flex items-center gap-0.5 text-slate-200 animate-in fade-in slide-in-from-bottom-1 duration-300">
+                    <span className="font-serif italic text-slate-400 text-xs">“</span>
+                    <span className="text-xs font-semibold truncate">Sign In / Join</span>
+                    <span className="font-serif italic text-slate-400 text-xs">”</span>
+                  </div>
+                ) : (
+                  <div key="guest-id" className="flex items-center gap-0.5 text-gold-400 animate-in fade-in slide-in-from-top-1 duration-300">
+                    <span className="font-serif italic text-gold-500 text-xs">“</span>
+                    <span className="font-mono font-bold text-[11px] tracking-wider truncate">
+                      {readerAccount?.readerId || 'SSO-READER-000'}
+                    </span>
+                    <span className="font-serif italic text-gold-500 text-xs">”</span>
+                  </div>
+                )}
+              </div>
             </button>
           )}
 
@@ -538,33 +747,122 @@ export const Navbar: React.FC<NavbarProps> = ({
       {mobileMenuOpen && (
         <div className="lg:hidden bg-void-950/98 border-b border-void-800 px-4 pt-3 pb-6 space-y-3 backdrop-blur-3xl animate-in slide-in-from-top-2 duration-200">
           
-          {/* Core Navigation Items */}
-          <div className="space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
+          {/* Simplified Core Navigation Groups on Mobile */}
+          <div className="space-y-2">
+            {/* 1. Universe & Worlds Option Group */}
+            <div className="p-2 rounded-2xl bg-void-900/70 border border-void-800 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-gold-400" />
+                Universe &amp; Worlds
+              </span>
+              <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                 <button
-                  key={item.id}
-                  onClick={() => handleNavClick(item.id)}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold uppercase tracking-wider flex items-center justify-between transition-all ${
-                    isActive
-                      ? 'text-gold-400 bg-gold-500/15 border border-gold-500/30'
-                      : 'text-slate-300 hover:bg-void-800/80'
+                  onClick={() => handleNavClick('home')}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                    activeTab === 'home'
+                      ? 'bg-gold-500/20 text-gold-300 border border-gold-500/40 font-bold'
+                      : 'text-slate-300 hover:bg-void-800'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-4 h-4" />
-                    <span>{item.label}</span>
-                  </div>
-                  {item.highlight && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-electric-500/20 text-electric-400 border border-electric-500/30 font-bold">
-                      Studio
-                    </span>
-                  )}
+                  <Sparkles className="w-3.5 h-3.5 text-gold-400" />
+                  <span>Universe</span>
                 </button>
-              );
-            })}
+                <button
+                  onClick={() => handleNavClick('lore')}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                    activeTab === 'lore'
+                      ? 'bg-gold-500/20 text-gold-300 border border-gold-500/40 font-bold'
+                      : 'text-slate-300 hover:bg-void-800'
+                  }`}
+                >
+                  <Compass className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Worlds</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Manga & Characters Option Group */}
+            <div className="p-2 rounded-2xl bg-void-900/70 border border-void-800 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 flex items-center gap-1.5">
+                <BookOpen className="w-3 h-3 text-gold-400" />
+                Manga &amp; Characters
+              </span>
+              <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                <button
+                  onClick={() => handleNavClick('manga')}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                    activeTab === 'manga'
+                      ? 'bg-gold-500/20 text-gold-300 border border-gold-500/40 font-bold'
+                      : 'text-slate-300 hover:bg-void-800'
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-gold-400" />
+                  <span>Manga</span>
+                </button>
+                <button
+                  onClick={() => handleNavClick('characters')}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                    activeTab === 'characters'
+                      ? 'bg-gold-500/20 text-gold-300 border border-gold-500/40 font-bold'
+                      : 'text-slate-300 hover:bg-void-800'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Characters</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 3. Users Tab */}
+            <button
+              onClick={() => handleNavClick('users')}
+              className={`w-full px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
+                activeTab === 'users'
+                  ? 'text-gold-400 bg-gold-500/15 border border-gold-500/30 font-bold'
+                  : 'text-slate-300 hover:bg-void-800/80'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <User className="w-4 h-4 text-electric-400" />
+                <span>Users &amp; Profile</span>
+              </div>
+              <span className="font-mono text-[10px] text-gold-400">
+                {readerAccount?.readerId || 'SSO-READER-000'}
+              </span>
+            </button>
+
+            {/* 4. Studio & Admin (Owner Only) */}
+            {isOwner && (
+              <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                <button
+                  onClick={() => handleNavClick('studio')}
+                  className={`px-3 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
+                    activeTab === 'studio'
+                      ? 'text-gold-400 bg-gold-500/15 border border-gold-500/30'
+                      : 'text-electric-300 hover:bg-void-800/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Edit3 className="w-4 h-4 text-electric-400" />
+                    <span>Studio</span>
+                  </div>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">Owner</span>
+                </button>
+                <button
+                  onClick={() => handleNavClick('owner')}
+                  className={`px-3 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
+                    activeTab === 'owner'
+                      ? 'text-gold-400 bg-gold-500/15 border border-gold-500/30'
+                      : 'text-purple-300 hover:bg-void-800/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-purple-400" />
+                    <span>Admin</span>
+                  </div>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Quick Actions & Utilities */}

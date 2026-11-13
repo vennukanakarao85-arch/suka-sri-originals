@@ -102,7 +102,13 @@ export function getReaderAccount(): ReaderAccount {
   try {
     const raw = localStorage.getItem(READER_ACCOUNT_KEY);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed: ReaderAccount = JSON.parse(raw);
+      // Auto-migrate legacy SSRI-READER- IDs to SSO-READER-000
+      if (parsed.readerId && (parsed.readerId.includes('SSRI-READER-') || parsed.readerId === 'SSRI-READER-8842')) {
+        parsed.readerId = parsed.readerId.replace('SSRI-READER-8842', 'SSO-READER-000').replace('SSRI-READER-', 'SSO-READER-');
+        saveReaderAccount(parsed);
+      }
+      return parsed;
     }
   } catch (e) {
     console.error('Error loading reader account:', e);
@@ -110,14 +116,14 @@ export function getReaderAccount(): ReaderAccount {
 
   // Initial canonical reader account with sample Chapter 1 unlocked
   const defaultAccount: ReaderAccount = {
-    readerId: 'SSRI-READER-8842',
+    readerId: 'SSO-READER-000',
     name: 'Valued Manga Reader',
     email: 'reader@sukasri.universe',
     country: 'IN',
     membershipStatus: 'free',
     unlockedChapterIds: ['sample-ch-001', 'ch-1', 'ch-001'],
     transactions: [],
-    watermarkSignature: 'SECURE-HMAC-256-AUTH-SSRI-2026',
+    watermarkSignature: 'SECURE-HMAC-256-AUTH-SSO-2026',
   };
 
   saveReaderAccount(defaultAccount);
