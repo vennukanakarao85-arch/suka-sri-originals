@@ -1,13 +1,16 @@
 import React from 'react';
 import { Sparkles, BookOpen, Compass, Film, Edit3, Shield, ArrowUp } from 'lucide-react';
 import { sound } from '../../data/soundEffects';
+import { ReaderAccount } from '../../types';
+import { isOwnerOrAdmin } from '../../services/authService';
 
 interface FooterProps {
   onSelectTab: (tab: string) => void;
   officialLogoUrl: string | null;
+  readerAccount?: ReaderAccount;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onSelectTab, officialLogoUrl }) => {
+export const Footer: React.FC<FooterProps> = ({ onSelectTab, officialLogoUrl, readerAccount }) => {
   const scrollToTop = () => {
     sound.playClick();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -88,12 +91,14 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab, officialLogoUrl }) 
               >
                 <Film className="w-3 h-3 text-electric-400" /> Anime Studio
               </button>
-              <button
-                onClick={() => onSelectTab('studio')}
-                className="text-left text-slate-400 hover:text-gold-400 transition-colors flex items-center gap-1.5 font-bold text-electric-400"
-              >
-                <Edit3 className="w-3 h-3" /> Creator Studio
-              </button>
+              {isOwnerOrAdmin(readerAccount) && (
+                <button
+                  onClick={() => onSelectTab('studio')}
+                  className="text-left text-slate-400 hover:text-gold-400 transition-colors flex items-center gap-1.5 font-bold text-electric-400 cursor-pointer"
+                >
+                  <Edit3 className="w-3 h-3" /> Creator Studio
+                </button>
+              )}
             </div>
           </div>
 

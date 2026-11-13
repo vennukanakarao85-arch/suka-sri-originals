@@ -21,7 +21,8 @@ import {
   Clock,
   Key,
   Smartphone,
-  Laptop
+  Laptop,
+  Edit3
 } from 'lucide-react';
 import { ReaderAccount, Chapter } from '../../types';
 import {
@@ -33,6 +34,7 @@ import {
   setPasswordForAccount,
   resetPasswordWithOtp,
   isOwnerOrAdmin,
+  loginAsOwnerDirect,
   OTP_VALIDITY_SECONDS
 } from '../../services/authService';
 import { sound } from '../../data/soundEffects';
@@ -44,6 +46,7 @@ interface UsersPageProps {
   onReadChapter: (chapterId: string) => void;
   onOpenPricing: () => void;
   onOpenOwnerCommandCenter?: () => void;
+  onOpenStudio?: () => void;
 }
 
 const COUNTRY_CODES = [
@@ -63,13 +66,18 @@ export const UsersPage: React.FC<UsersPageProps> = ({
   allChapters,
   onReadChapter,
   onOpenPricing,
-  onOpenOwnerCommandCenter
+  onOpenOwnerCommandCenter,
+  onOpenStudio
 }) => {
-  const [authMethod, setAuthMethod] = useState<'phone' | 'email' | 'password'>('phone');
+  const [authMethod, setAuthMethod] = useState<'phone' | 'email' | 'password' | 'owner'>('phone');
   const [countryCode, setCountryCode] = useState<string>('+91');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [emailAddress, setEmailAddress] = useState<string>('');
   const [displayName, setDisplayName] = useState<string>('');
+
+  // Owner Direct Login State
+  const [ownerPasscodeInput, setOwnerPasscodeInput] = useState<string>('');
+  const [isLoggingInAsOwner, setIsLoggingInAsOwner] = useState<boolean>(false);
 
   // Password Login State
   const [loginIdentifier, setLoginIdentifier] = useState<string>('');
@@ -173,6 +181,38 @@ export const UsersPage: React.FC<UsersPageProps> = ({
       setErrorMessage(err.message || 'Failed to send verification code.');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // Handle Master Owner Direct Login (Phone & Laptop)
+  const handleOwnerDirectLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ownerPasscodeInput.trim()) {
+      setErrorMessage('Please enter your Master Owner Passcode.');
+      return;
+    }
+    sound.playClick();
+    setErrorMessage(null);
+    setIsLoggingInAsOwner(true);
+    try {
+      const res = await loginAsOwnerDirect(ownerPasscodeInput);
+      if (res.success && res.account) {
+        onAccountUpdated(res.account);
+        sound.playCelestialChime();
+        setSuccessMessage('Welcome Srinivas Vennu! Master Owner privileges activated.');
+        setOwnerPasscodeInput('');
+        if (onOpenStudio) {
+          setTimeout(() => {
+            onOpenStudio();
+          }, 800);
+        }
+      } else {
+        setErrorMessage(res.message || 'Invalid Master Owner Passcode.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Owner authentication failed.');
+    } finally {
+      setIsLoggingInAsOwner(false);
     }
   };
 
@@ -466,13 +506,26 @@ export const UsersPage: React.FC<UsersPageProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              {isOwner && onOpenStudio && (
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    onOpenStudio();
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 hover:brightness-110 text-void-950 font-bold text-xs flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(255,215,0,0.3)] cursor-pointer"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  <span>Creator Studio &amp; Publish</span>
+                </button>
+              )}
+
               {isOwner && onOpenOwnerCommandCenter && (
                 <button
                   onClick={() => {
                     sound.playClick();
                     onOpenOwnerCommandCenter();
                   }}
-                  className="px-4 py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-purple-200 font-bold text-xs flex items-center gap-2 transition-all shadow-md"
+                  className="px-4 py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-purple-200 font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
                 >
                   <Layers className="w-4 h-4 text-purple-300" />
                   <span>Owner Command Center</span>
@@ -650,8 +703,8 @@ export const UsersPage: React.FC<UsersPageProps> = ({
             </p>
           </div>
 
-          {/* TABS: Mobile OTP vs Email OTP vs Password */}
-          <div className="grid grid-cols-3 gap-2 p-1.5 rounded-2xl bg-void-900 border border-void-800">
+          {/* TABS: Mobile OTP vs Email OTP vs Password vs Owner Direct */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 rounded-2xl bg-void-900 border border-void-800">
             <button
               onClick={() => {
                 sound.playClick();
@@ -659,7 +712,7 @@ export const UsersPage: React.FC<UsersPageProps> = ({
                 setOtpSent(false);
                 setErrorMessage(null);
               }}
-              className={`py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+              className={`py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 authMethod === 'phone'
                   ? 'bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-black shadow-md'
                   : 'text-slate-400 hover:text-white'
@@ -676,7 +729,7 @@ export const UsersPage: React.FC<UsersPageProps> = ({
                 setOtpSent(false);
                 setErrorMessage(null);
               }}
-              className={`py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+              className={`py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 authMethod === 'email'
                   ? 'bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-black shadow-md'
                   : 'text-slate-400 hover:text-white'
@@ -693,7 +746,7 @@ export const UsersPage: React.FC<UsersPageProps> = ({
                 setOtpSent(false);
                 setErrorMessage(null);
               }}
-              className={`py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+              className={`py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 authMethod === 'password'
                   ? 'bg-gradient-to-r from-electric-500 to-cyan-500 text-void-950 font-black shadow-md'
                   : 'text-slate-400 hover:text-white'
@@ -702,10 +755,116 @@ export const UsersPage: React.FC<UsersPageProps> = ({
               <KeyRound className="w-3.5 h-3.5" />
               <span>Password</span>
             </button>
+
+            <button
+              onClick={() => {
+                sound.playClick();
+                setAuthMethod('owner');
+                setOtpSent(false);
+                setErrorMessage(null);
+              }}
+              className={`py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                authMethod === 'owner'
+                  ? 'bg-gradient-to-r from-amber-500 via-gold-500 to-amber-600 text-void-950 font-black shadow-md'
+                  : 'text-amber-400/80 hover:text-amber-300'
+              }`}
+            >
+              <Crown className="w-3.5 h-3.5" />
+              <span>👑 Owner</span>
+            </button>
           </div>
 
-          {/* PASSWORD LOGIN FORM / FORGOT PASSWORD RESET */}
-          {authMethod === 'password' ? (
+          {/* OWNER DIRECT MASTER KEY LOGIN FORM */}
+          {authMethod === 'owner' ? (
+            <form onSubmit={handleOwnerDirectLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-150">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-gold-500/10 to-amber-600/15 border border-gold-500/40 text-xs text-gold-300 space-y-1">
+                <div className="flex items-center gap-2 font-display font-bold text-white text-sm">
+                  <Crown className="w-4 h-4 text-gold-400" />
+                  <span>Owner &amp; Author Direct Authentication</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Log in as author <strong className="text-gold-300">Srinivas Vennu</strong> directly on phone or laptop to access Creator Studio, publish chapter updates, and manage the universe.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Author / Payee Profile
+                </label>
+                <div className="p-3.5 rounded-xl bg-void-900 border border-void-800 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-gold-500/20 text-gold-400 flex items-center justify-center font-bold font-mono">
+                      SV
+                    </div>
+                    <div>
+                      <div className="text-white font-bold">Srinivas Vennu / Kanaka Rao</div>
+                      <div className="text-[11px] text-slate-400 font-mono">+91 9502714652 • srinivas@sukasri.universe</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-gold-500/20 text-gold-400 border border-gold-500/30 font-bold uppercase font-mono">
+                    SSO-READER-000
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Master Owner Passcode <span className="text-gold-400">*</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="Enter master passcode (e.g. 9502714652 or SUKASRI2026)..."
+                  value={ownerPasscodeInput}
+                  onChange={(e) => setOwnerPasscodeInput(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-void-900 border border-void-800 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-gold-400 transition-colors tracking-wider font-mono text-center"
+                  autoFocus
+                  required
+                />
+                <div className="flex flex-wrap items-center gap-1.5 mt-2 text-xs text-slate-400">
+                  <span>Quick Fill:</span>
+                  <button
+                    type="button"
+                    onClick={() => setOwnerPasscodeInput('9502714652')}
+                    className="px-2 py-0.5 rounded bg-void-800 hover:bg-gold-500/20 text-gold-400 font-mono cursor-pointer transition-colors"
+                  >
+                    9502714652
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOwnerPasscodeInput('SUKASRI2026')}
+                    className="px-2 py-0.5 rounded bg-void-800 hover:bg-gold-500/20 text-gold-400 font-mono cursor-pointer transition-colors"
+                  >
+                    SUKASRI2026
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOwnerPasscodeInput('8842')}
+                    className="px-2 py-0.5 rounded bg-void-800 hover:bg-gold-500/20 text-gold-400 font-mono cursor-pointer transition-colors"
+                  >
+                    8842
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoggingInAsOwner || !ownerPasscodeInput.trim()}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-gold-500 via-amber-500 to-gold-500 hover:brightness-110 text-void-950 font-display font-black text-xs uppercase tracking-widest shadow-[0_0_25px_rgba(255,215,0,0.35)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {isLoggingInAsOwner ? (
+                  <>
+                    <RotateCcw className="w-4 h-4 animate-spin" />
+                    <span>Verifying Master Privileges...</span>
+                  </>
+                ) : (
+                  <>
+                    <Crown className="w-4 h-4" />
+                    <span>Unlock Creator Studio &amp; Admin (Phone &amp; Laptop)</span>
+                  </>
+                )}
+              </button>
+            </form>
+          ) : authMethod === 'password' ? (
             isForgotPasswordMode ? (
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-150">
                 <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/40 via-void-900 to-indigo-950/40 border border-purple-500/30 flex items-center justify-between">

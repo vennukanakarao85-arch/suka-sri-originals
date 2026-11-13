@@ -194,7 +194,7 @@ export function App() {
         const characters = (m.characters && m.characters.length > 0) ? m.characters : SAMPLE_CHARACTERS;
         return {
           ...m,
-          chapters: m.chapters || [],
+          chapters: (m.chapters && m.chapters.length > 0) ? m.chapters : [SAMPLE_CHAPTER_1],
           characters,
         };
       }
@@ -280,6 +280,7 @@ export function App() {
           setIsFortressModalOpen(true);
         }}
         readerAccount={readerAccount}
+        onAccountUpdated={(updated) => setReaderAccount(updated)}
       />
 
       {/* Main Module Content */}
@@ -362,6 +363,7 @@ export function App() {
               hasPublishedChapters={publishedChapters.length > 0}
               firstChapterId={firstPublishedChapter?.id || null}
               onOpenStudio={() => handleOpenStudioForManga()}
+              readerAccount={readerAccount}
             />
             <LatestUpdates
               mangaList={effectiveMangaList}
@@ -494,6 +496,10 @@ export function App() {
             onReadChapter={(chapterId) => setReadingChapterId(chapterId)}
             onOpenPricing={() => handleOpenPayment(undefined, 'membership')}
             onOpenOwnerCommandCenter={() => setActiveTab('owner')}
+            onOpenStudio={() => {
+              setActiveTab('studio');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           />
         )}
       </main>
@@ -508,6 +514,7 @@ export function App() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         officialLogoUrl={config.officialLogoUrl}
+        readerAccount={readerAccount}
       />
 
       {/* Pro Manga Reader Modal */}
@@ -553,6 +560,11 @@ export function App() {
         onOpenOwnerCommandCenter={() => {
           setIsAccountModalOpen(false);
           setActiveTab('owner');
+        }}
+        onOpenStudio={() => {
+          setIsAccountModalOpen(false);
+          setActiveTab('studio');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
       />
 

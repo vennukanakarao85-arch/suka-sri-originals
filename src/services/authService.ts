@@ -20,7 +20,7 @@ const GLOBAL_TRANSACTIONS_KEY = 'sukasri_global_transactions_v1';
 const OWNER_SESSION_KEY = 'sukasri_owner_authenticated';
 
 // Master Owner Passcodes accepted for Studio & Admin Access
-export const OWNER_PASSCODES = ['9502714652', '8842', 'sukasri2026', 'admin8842'];
+export const OWNER_PASSCODES = ['9502714652', '8842', 'sukasri2026', 'SUKASRI2026', 'admin8842', 'VENNU9502', 'KANAKARAO9502', 'ORIGINALS2026', 'admin'];
 
 export interface OtpSession {
   target: string; // phone or email
@@ -262,10 +262,18 @@ export async function loginWithPassword(identifier: string, plainPassword: strin
     };
   }
 
+  const cleanPass = plainPassword.trim();
   const computedHash = await hashPassword(plainPassword);
   const users = getAllRegisteredUsers();
 
-  const matchedUser = users.find(u => {
+  const isOwnerIdentifier = (cleanTarget && cleanTarget.includes('9502714652')) ||
+    cleanEmail.includes('srinivas') ||
+    cleanEmail.includes('kanakarao') ||
+    identifier.trim().toUpperCase() === 'SSO-READER-000';
+
+  const isOwnerPasscode = OWNER_PASSCODES.some(p => p.toLowerCase() === cleanPass.toLowerCase());
+
+  let matchedUser = users.find(u => {
     const uPhone = u.phone?.replace(/[^0-9]/g, '');
     const uEmail = u.email?.trim().toLowerCase();
     const phoneMatch = cleanTarget.length >= 7 && uPhone && uPhone.includes(cleanTarget);
@@ -274,6 +282,11 @@ export async function loginWithPassword(identifier: string, plainPassword: strin
     return phoneMatch || emailMatch || readerIdMatch;
   });
 
+  // If this is the owner logging in from a new device, auto-initialize from default registry
+  if (!matchedUser && isOwnerIdentifier) {
+    matchedUser = initializeDefaultRegistry()[0];
+  }
+
   if (!matchedUser) {
     return {
       success: false,
@@ -281,19 +294,27 @@ export async function loginWithPassword(identifier: string, plainPassword: strin
     };
   }
 
-  if (!matchedUser.passwordHash) {
-    return {
-      success: false,
-      message: 'No password is set for this account yet. Please log in using OTP first and set your password in your profile.'
-    };
-  }
+  // Check password or owner master key
+  const isPasswordValid = (matchedUser.passwordHash && matchedUser.passwordHash === computedHash) || (isOwnerIdentifier && isOwnerPasscode);
 
-  if (matchedUser.passwordHash !== computedHash) {
+  if (!isPasswordValid) {
+    if (!matchedUser.passwordHash && !isOwnerPasscode) {
+      return {
+        success: false,
+        message: 'No password is set for this account yet. Please log in using OTP first and set your password in your profile.'
+      };
+    }
+
     await logSecurityEvent('WARN', 'PASSWORD_LOGIN_FAILED', 'Auth Service', `Invalid password attempt for ${identifier}`);
     return {
       success: false,
       message: 'Incorrect password. Please verify and try again.'
     };
+  }
+
+  // If owner used master passcode and didn't have passwordHash saved, save it now
+  if (isOwnerIdentifier && !matchedUser.passwordHash) {
+    matchedUser.passwordHash = computedHash;
   }
 
   // Login successful! Restore entire account with VIP membership & unlocked chapters
@@ -582,6 +603,45 @@ export function verifyOwnerPasscode(passcode: string): boolean {
     return true;
   }
   return false;
+}
+
+export async function loginAsOwnerDirect(passcode: string): Promise<VerifyOtpResult> {
+  const clean = passcode.trim();
+  const matched = OWNER_PASSCODES.some(p => p.toLowerCase() === clean.toLowerCase());
+  if (!matched) {
+    return {
+      success: false,
+      message: 'Invalid Master Owner Passcode. Enter 9502714652 or SUKASRI2026.'
+    };
+  }
+
+  setOwnerSession(true);
+  const users = getAllRegisteredUsers();
+  const ownerRecord = users.find(u => u.readerId === 'SSO-READER-000' || (u.phone && u.phone.includes('9502714652'))) || initializeDefaultRegistry()[0];
+
+  const updatedOwner: ReaderAccount = {
+    ...ownerRecord,
+    readerId: 'SSO-READER-000',
+    name: 'Srinivas Vennu (Owner)',
+    phone: '+91 9502714652',
+    email: 'srinivas@sukasri.universe',
+    isLoggedIn: true,
+    authMethod: 'password',
+    role: 'owner',
+    membershipStatus: 'monthly_member',
+    lastLoginAt: new Date().toISOString(),
+    watermarkSignature: `AUTH_OWNER_MASTER_${Date.now().toString(36).toUpperCase()}_VERIFIED`
+  };
+
+  saveReaderAccount(updatedOwner);
+  registerOrUpdateUser(updatedOwner);
+  await logSecurityEvent('INFO', 'OWNER_DIRECT_LOGIN', 'Auth Service', 'Owner authenticated directly with Master Passcode.');
+
+  return {
+    success: true,
+    message: 'Master Owner privileges verified! Welcome, Srinivas Vennu.',
+    account: updatedOwner
+  };
 }
 
 export async function verifyOwnerOtp(enteredCode: string): Promise<{ success: boolean; message: string }> {

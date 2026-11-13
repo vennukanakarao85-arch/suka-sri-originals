@@ -22,12 +22,19 @@ import {
   Key,
   Lock,
   Unlock,
-  Users
+  Users,
+  Crown
 } from 'lucide-react';
 import { sound } from '../../data/soundEffects';
 import { Logo3D } from './Logo3D';
 import { ReaderAccount } from '../../types';
-import { isOwnerOrAdmin, verifyOwnerPasscode, setOwnerSession } from '../../services/authService';
+import {
+  isOwnerOrAdmin,
+  verifyOwnerPasscode,
+  setOwnerSession,
+  loginAsOwnerDirect,
+  logoutReaderAccount
+} from '../../services/authService';
 
 interface NavbarProps {
   activeTab: string;
@@ -41,6 +48,7 @@ interface NavbarProps {
   onOpenAboutAuthor: () => void;
   onOpenFortressSecurity: () => void;
   readerAccount?: ReaderAccount;
+  onAccountUpdated?: (updated: ReaderAccount) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -55,6 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAboutAuthor,
   onOpenFortressSecurity,
   readerAccount,
+  onAccountUpdated,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
@@ -161,17 +170,21 @@ export const Navbar: React.FC<NavbarProps> = ({
     setMoreDropdownOpen(false);
   };
 
-  const handleUnlockOwner = (e: React.FormEvent) => {
+  const handleUnlockOwner = async (e: React.FormEvent) => {
     e.preventDefault();
     sound.playClick();
-    if (verifyOwnerPasscode(passcodeInput)) {
+    const res = await loginAsOwnerDirect(passcodeInput);
+    if (res.success && res.account) {
+      if (onAccountUpdated) {
+        onAccountUpdated(res.account);
+      }
       setOwnerPasscodeModalOpen(false);
       setPasscodeInput('');
       setPasscodeError(null);
       sound.playCelestialChime();
       onSelectTab('studio');
     } else {
-      setPasscodeError('Invalid Owner Passcode. Enter 9502714652 or 8842.');
+      setPasscodeError(res.message || 'Invalid Owner Passcode. Enter 9502714652 or SUKASRI2026.');
     }
   };
 
@@ -510,8 +523,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
 
                 <div className="p-1 space-y-1">
-                  {/* View Mode Switcher */}
-                  {onToggleViewMode && (
+                  {/* View Mode Switcher (Owner Only) */}
+                  {isOwner && onToggleViewMode && (
                     <button
                       onClick={() => {
                         onToggleViewMode();
@@ -665,10 +678,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                         onClick={() => {
                           sound.playClick();
                           setOwnerSession(false);
+                          const guest = logoutReaderAccount();
+                          if (onAccountUpdated) {
+                            onAccountUpdated(guest);
+                          }
                           setMoreDropdownOpen(false);
                           onSelectTab('home');
                         }}
-                        className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center justify-between hover:bg-rose-500/10 transition-all text-rose-300"
+                        className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center justify-between hover:bg-rose-500/10 transition-all text-rose-300 cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5">
                           <Lock className="w-3.5 h-3.5 text-rose-400" />
@@ -676,29 +693,29 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </div>
                       </button>
                     </>
-                  ) : !readerAccount?.isLoggedIn ? (
+                  ) : (
                     <button
                       onClick={() => {
                         sound.playClick();
                         setMoreDropdownOpen(false);
                         setOwnerPasscodeModalOpen(true);
                       }}
-                      className="w-full px-3 py-2.5 rounded-xl text-left text-xs font-semibold flex items-center justify-between hover:bg-purple-500/10 transition-all group"
+                      className="w-full px-3 py-2.5 rounded-xl text-left text-xs font-semibold flex items-center justify-between hover:bg-gold-500/10 transition-all group cursor-pointer"
                     >
                       <div className="flex items-center gap-2.5">
-                        <Key className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+                        <Crown className="w-4 h-4 text-gold-400 group-hover:scale-110 transition-transform" />
                         <div>
-                          <div className="text-slate-200 group-hover:text-purple-300 font-medium">
-                            Owner &amp; Studio Unlock
+                          <div className="text-slate-200 group-hover:text-gold-300 font-medium">
+                            Author &amp; Owner Login
                           </div>
                           <div className="text-[10px] text-slate-400">
-                            Author Master Key Authentication
+                            Phone &amp; Laptop Master Key
                           </div>
                         </div>
                       </div>
                       <Lock className="w-3.5 h-3.5 text-slate-500" />
                     </button>
-                  ) : null}
+                  )}
                 </div>
               </div>
             )}
@@ -868,8 +885,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Quick Actions & Utilities */}
           <div className="pt-3 border-t border-void-800/80 space-y-2">
             
-            {/* View Mode Switcher */}
-            {onToggleViewMode && (
+            {/* View Mode Switcher (Owner Only) */}
+            {isOwner && onToggleViewMode && (
               <button
                 onClick={() => {
                   onToggleViewMode();
@@ -892,6 +909,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>Mode: Creator View</span>
                   </>
                 )}
+              </button>
+            )}
+
+            {!isOwner && (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setOwnerPasscodeModalOpen(true);
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500/10 via-gold-500/10 to-amber-500/10 border border-gold-500/30 text-gold-400 font-bold text-xs flex items-center justify-center gap-2 uppercase tracking-wider cursor-pointer"
+              >
+                <Crown className="w-4 h-4 text-gold-400" />
+                <span>Author &amp; Owner Login (Phone &amp; Laptop)</span>
               </button>
             )}
 
@@ -997,7 +1027,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 Unlock Creator Studio &amp; Admin
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                Enter your Master Owner Passcode (e.g. <code>9502714652</code> or <code>8842</code>).
+                Enter your Master Owner Passcode (e.g. <code>9502714652</code> or <code>SUKASRI2026</code>).
               </p>
             </div>
 
@@ -1011,6 +1041,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="w-full px-4 py-3 rounded-xl bg-void-950 border border-void-800 focus:border-gold-400 text-white placeholder-slate-600 text-center font-mono tracking-widest text-lg outline-none"
                   autoFocus
                 />
+                <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2 text-xs text-slate-400">
+                  <span>Quick Fill:</span>
+                  <button
+                    type="button"
+                    onClick={() => setPasscodeInput('9502714652')}
+                    className="px-2 py-0.5 rounded bg-void-800 hover:bg-gold-500/20 text-gold-400 font-mono cursor-pointer transition-colors"
+                  >
+                    9502714652
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPasscodeInput('SUKASRI2026')}
+                    className="px-2 py-0.5 rounded bg-void-800 hover:bg-gold-500/20 text-gold-400 font-mono cursor-pointer transition-colors"
+                  >
+                    SUKASRI2026
+                  </button>
+                </div>
                 {passcodeError && (
                   <p className="text-xs text-rose-400 mt-2 font-medium">
                     {passcodeError}

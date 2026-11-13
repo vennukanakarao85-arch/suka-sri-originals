@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Sparkles, ArrowRight, Eye, Layers, Maximize2 } from 'lucide-react';
 import { sound } from '../../data/soundEffects';
 import { MasterPosterModal, PosterKey } from '../common/MasterPosterModal';
+import { ReaderAccount } from '../../types';
+import { isOwnerOrAdmin } from '../../services/authService';
 
 interface FeaturedSagaProps {
   onReadChapter: (chapterId: string) => void;
@@ -10,6 +12,7 @@ interface FeaturedSagaProps {
   hasPublishedChapters?: boolean;
   firstChapterId?: string | null;
   onOpenStudio?: () => void;
+  readerAccount?: ReaderAccount;
 }
 
 export const FeaturedSaga: React.FC<FeaturedSagaProps> = ({
@@ -19,6 +22,7 @@ export const FeaturedSaga: React.FC<FeaturedSagaProps> = ({
   hasPublishedChapters = false,
   firstChapterId = null,
   onOpenStudio,
+  readerAccount,
 }) => {
   const [selectedPosterKey, setSelectedPosterKey] = useState<PosterKey | null>(null);
 
@@ -131,24 +135,33 @@ export const FeaturedSaga: React.FC<FeaturedSagaProps> = ({
                       sound.playClick();
                       onReadChapter(firstChapterId);
                     }}
-                    className="px-6 py-3 rounded-xl font-display text-xs sm:text-sm font-bold tracking-widest uppercase bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 hover:brightness-110 shadow-[0_0_20px_rgba(255,215,0,0.3)] transition-all flex items-center gap-2"
+                    className="px-6 py-3 rounded-xl font-display text-xs sm:text-sm font-bold tracking-widest uppercase bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 hover:brightness-110 shadow-[0_0_20px_rgba(255,215,0,0.3)] transition-all flex items-center gap-2 cursor-pointer"
                   >
                     <Eye className="w-4 h-4" />
                     Read Prologue (Ch. 1)
                   </button>
+                ) : isOwnerOrAdmin(readerAccount) && onOpenStudio ? (
+                  <button
+                    onClick={() => {
+                      sound.playClick();
+                      onOpenStudio();
+                    }}
+                    className="px-6 py-3 rounded-xl font-display text-xs sm:text-sm font-bold tracking-widest uppercase bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 hover:brightness-110 shadow-[0_0_20px_rgba(255,215,0,0.3)] transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Upload Chapter 1
+                  </button>
                 ) : (
-                  onOpenStudio && (
-                    <button
-                      onClick={() => {
-                        sound.playClick();
-                        onOpenStudio();
-                      }}
-                      className="px-6 py-3 rounded-xl font-display text-xs sm:text-sm font-bold tracking-widest uppercase bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 hover:brightness-110 shadow-[0_0_20px_rgba(255,215,0,0.3)] transition-all flex items-center gap-2"
-                    >
-                      <Eye className="w-4 h-4" />
-                      Upload Chapter 1
-                    </button>
-                  )
+                  <button
+                    onClick={() => {
+                      sound.playClick();
+                      onReadChapter(firstChapterId || 'sample-ch-1');
+                    }}
+                    className="px-6 py-3 rounded-xl font-display text-xs sm:text-sm font-bold tracking-widest uppercase bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 hover:brightness-110 shadow-[0_0_20px_rgba(255,215,0,0.3)] transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Read Prologue (Ch. 1)
+                  </button>
                 )}
 
                 <button
