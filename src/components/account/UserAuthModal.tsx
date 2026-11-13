@@ -714,8 +714,8 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
             /* VIEW B: USER IS NOT LOGGED IN (AUTH FORM) */
             <div className="space-y-5">
               
-              {/* Method Switcher Tabs: Phone vs Email vs Password vs Owner Direct */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 rounded-2xl bg-void-950 border border-void-800">
+              {/* Method Switcher Tabs: Phone vs Email vs Password */}
+              <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-void-950 border border-void-800">
                 <button
                   type="button"
                   onClick={() => {
@@ -769,96 +769,34 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
                   <KeyRound className="w-3.5 h-3.5" />
                   <span>Password</span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    sound.playClick();
-                    setAuthMethod('owner');
-                    setOtpSent(false);
-                    setErrorMessage(null);
-                  }}
-                  className={`py-2 px-2 rounded-xl text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    authMethod === 'owner'
-                      ? 'bg-gradient-to-r from-amber-500 via-gold-500 to-amber-600 text-void-950 shadow-md font-black'
-                      : 'text-amber-400/80 hover:text-amber-300'
-                  }`}
-                >
-                  <Crown className="w-3.5 h-3.5" />
-                  <span>👑 Owner</span>
-                </button>
               </div>
 
-              {/* OWNER DIRECT LOGIN VIEW */}
+              {/* OWNER DIRECT LOGIN VIEW (PRIVATE - NO EXPOSED PASSCODES) */}
               {authMethod === 'owner' ? (
                 <form onSubmit={handleOwnerDirectLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-gold-500/10 to-amber-600/15 border border-gold-500/40 text-xs text-gold-300 space-y-1">
+                  <div className="p-4 rounded-2xl bg-void-950 border border-gold-500/30 text-xs text-slate-300 space-y-1">
                     <div className="flex items-center gap-2 font-display font-bold text-white text-sm">
-                      <Crown className="w-4 h-4 text-gold-400" />
-                      <span>Owner &amp; Author Direct Authentication</span>
+                      <Lock className="w-4 h-4 text-gold-400" />
+                      <span>Author Private Verification</span>
                     </div>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">
-                      Instant master-key access for author <strong className="text-gold-300">Srinivas Vennu</strong> across phone &amp; laptop to publish chapters, update manga, and manage readers.
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Enter your private master passcode to unlock Creator Studio and Admin controls on this device.
                     </p>
                   </div>
 
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                      Author / Payee Profile
-                    </label>
-                    <div className="p-3 rounded-xl bg-void-950 border border-void-800 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-gold-500/20 text-gold-400 flex items-center justify-center font-bold font-mono">
-                          SV
-                        </div>
-                        <div>
-                          <div className="text-white font-bold">Srinivas Vennu / Kanaka Rao</div>
-                          <div className="text-[10px] text-slate-400 font-mono">+91 9502714652 • srinivas@sukasri.universe</div>
-                        </div>
-                      </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-gold-500/20 text-gold-400 border border-gold-500/30 font-bold uppercase font-mono">
-                        SSO-READER-000
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                      Master Owner Passcode <span className="text-gold-400">*</span>
+                      Private Master Passcode <span className="text-gold-400">*</span>
                     </label>
                     <input
                       type="password"
-                      placeholder="Enter master passcode (e.g. 9502714652 or SUKASRI2026)..."
+                      placeholder="••••••••••"
                       value={ownerPasscodeInput}
                       onChange={(e) => setOwnerPasscodeInput(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-void-950 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-gold-400 transition-colors tracking-wider font-mono text-center text-sm"
+                      className="w-full px-4 py-3 rounded-xl bg-void-950 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-gold-400 transition-colors tracking-widest font-mono text-center text-sm"
                       autoFocus
                       required
                     />
-                    <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[10px] text-slate-400">
-                      <span>Quick Fill:</span>
-                      <button
-                        type="button"
-                        onClick={() => setOwnerPasscodeInput('9502714652')}
-                        className="px-2 py-0.5 rounded bg-void-800 hover:bg-gold-500/20 text-gold-400 font-mono cursor-pointer transition-colors"
-                      >
-                        9502714652
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setOwnerPasscodeInput('SUKASRI2026')}
-                        className="px-2 py-0.5 rounded bg-void-800 hover:bg-gold-500/20 text-gold-400 font-mono cursor-pointer transition-colors"
-                      >
-                        SUKASRI2026
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setOwnerPasscodeInput('8842')}
-                        className="px-2 py-0.5 rounded bg-void-800 hover:bg-gold-500/20 text-gold-400 font-mono cursor-pointer transition-colors"
-                      >
-                        8842
-                      </button>
-                    </div>
                   </div>
 
                   <button
@@ -869,15 +807,29 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
                     {isLoggingInAsOwner ? (
                       <>
                         <RotateCcw className="w-4 h-4 animate-spin" />
-                        <span>Verifying Master Privileges...</span>
+                        <span>Verifying Privileges...</span>
                       </>
                     ) : (
                       <>
-                        <Crown className="w-4 h-4" />
-                        <span>Unlock Creator Studio &amp; Admin (Phone &amp; Laptop)</span>
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Authenticate Author</span>
                       </>
                     )}
                   </button>
+
+                  <div className="text-center pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sound.playClick();
+                        setAuthMethod('phone');
+                        setErrorMessage(null);
+                      }}
+                      className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                    >
+                      ← Back to Reader Sign-in
+                    </button>
+                  </div>
                 </form>
               ) : authMethod === 'password' ? (
                 isForgotPasswordMode ? (
@@ -1326,9 +1278,25 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
               )}
 
               {/* Security Assurance Footer */}
-              <div className="pt-4 border-t border-void-800 text-center text-[10px] text-slate-400 flex items-center justify-center gap-2">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Protected by SUKA SRI Fortress • Zero-Knowledge Multi-Device Authentication</span>
+              <div className="pt-4 border-t border-void-800 flex flex-col items-center justify-center gap-2">
+                <div className="text-[10px] text-slate-400 flex items-center justify-center gap-2">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Protected by SUKA SRI Fortress • Zero-Knowledge Multi-Device Authentication</span>
+                </div>
+                {authMethod !== 'owner' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sound.playClick();
+                      setAuthMethod('owner');
+                      setErrorMessage(null);
+                    }}
+                    className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors flex items-center gap-1 opacity-40 hover:opacity-100 cursor-pointer pt-1"
+                  >
+                    <Lock className="w-2.5 h-2.5" />
+                    <span>Author Verification</span>
+                  </button>
+                )}
               </div>
             </div>
           )}
