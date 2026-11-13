@@ -55,6 +55,11 @@ export interface ReaderAccount {
   readerId: string;
   name: string;
   email: string;
+  phone?: string;
+  countryCode?: string;
+  isLoggedIn?: boolean;
+  authMethod?: 'phone' | 'email' | 'guest';
+  avatarUrl?: string;
   country: 'IN' | 'INTL';
   membershipStatus: 'free' | 'monthly_member';
   membershipValidUntil?: string;

@@ -19,8 +19,9 @@ import { CharacterUniverse } from './components/characters/CharacterUniverse';
 import { WorldsAndLore } from './components/lore/WorldsAndLore';
 import { AnimeStudio } from './components/anime/AnimeStudio';
 import { CreatorStudio } from './components/studio/CreatorStudio';
+import { UsersPage } from './components/account/UsersPage';
+import { UserAuthModal } from './components/account/UserAuthModal';
 import { PaymentModal } from './components/manga/PaymentModal';
-import { ReaderAccountModal } from './components/account/ReaderAccountModal';
 import { AboutAuthorModal } from './components/author/AboutAuthorModal';
 import { FortressSecurityModal } from './components/security/FortressSecurityModal';
 
@@ -49,8 +50,12 @@ function parseHash(hashStr: string): RouteState {
     return { tab: 'manga', mangaId: null, chapterId: null };
   }
 
-  if (['characters', 'lore', 'anime', 'studio'].includes(primary)) {
+  if (['characters', 'lore', 'anime', 'studio', 'users'].includes(primary)) {
     return { tab: primary, mangaId: null, chapterId: null };
+  }
+
+  if (primary === 'login' || primary === 'account') {
+    return { tab: 'users', mangaId: null, chapterId: null };
   }
 
   return { tab: 'home', mangaId: null, chapterId: null };
@@ -272,6 +277,7 @@ export function App() {
           sound.playClick();
           setIsFortressModalOpen(true);
         }}
+        readerAccount={readerAccount}
       />
 
       {/* Main Module Content */}
@@ -324,6 +330,8 @@ export function App() {
                   ? 'Anime Studio'
                   : activeTab === 'studio'
                   ? 'Creator Studio'
+                  : activeTab === 'users'
+                  ? 'Users Portal & Accounts'
                   : activeTab}
               </span>
             </div>
@@ -416,6 +424,16 @@ export function App() {
             initialMangaId={studioInitialMangaId}
           />
         )}
+
+        {activeTab === 'users' && (
+          <UsersPage
+            readerAccount={readerAccount}
+            onAccountUpdated={(updated) => setReaderAccount(updated)}
+            allChapters={allChapters}
+            onReadChapter={(chapterId) => setReadingChapterId(chapterId)}
+            onOpenPricing={() => handleOpenPayment(undefined, 'membership')}
+          />
+        )}
       </main>
 
       {/* Footer */}
@@ -455,17 +473,18 @@ export function App() {
         }}
       />
 
-      {/* Reader Account & Unlocked Content Vault Modal */}
-      <ReaderAccountModal
+      {/* Reader Account & Authentication Modal (Phone OTP & Email OTP) */}
+      <UserAuthModal
         isOpen={isAccountModalOpen}
         onClose={() => setIsAccountModalOpen(false)}
         readerAccount={readerAccount}
+        onAccountUpdated={(updated) => setReaderAccount(updated)}
         allChapters={allChapters}
-        onOpenChapter={(chapterId) => {
+        onReadChapter={(chapterId) => {
           setIsAccountModalOpen(false);
           setReadingChapterId(chapterId);
         }}
-        onOpenMembershipCheckout={() => {
+        onOpenPricing={() => {
           setIsAccountModalOpen(false);
           handleOpenPayment(undefined, 'membership');
         }}

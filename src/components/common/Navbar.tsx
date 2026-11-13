@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { sound } from '../../data/soundEffects';
 import { Logo3D } from './Logo3D';
+import { ReaderAccount } from '../../types';
 
 interface NavbarProps {
   activeTab: string;
@@ -33,6 +34,7 @@ interface NavbarProps {
   onOpenPricing: () => void;
   onOpenAboutAuthor: () => void;
   onOpenFortressSecurity: () => void;
+  readerAccount?: ReaderAccount;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -46,6 +48,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenPricing,
   onOpenAboutAuthor,
   onOpenFortressSecurity,
+  readerAccount,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
@@ -95,6 +98,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'manga', label: 'Manga', icon: BookOpen },
     { id: 'characters', label: 'Characters', icon: Sparkles },
     { id: 'lore', label: 'Worlds', icon: Compass },
+    { id: 'users', label: 'Users', icon: User },
     { id: 'studio', label: 'Studio', icon: Edit3, highlight: true },
   ];
 
@@ -199,17 +203,37 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
 
-          {/* Reader Account Button */}
-          <button
-            onClick={() => {
-              sound.playClick();
-              onOpenAccount();
-            }}
-            title="Reader Account & Subscriptions"
-            className="p-2 rounded-full bg-void-900 hover:bg-void-800 text-slate-300 hover:text-white border border-void-800 hover:border-slate-600 transition-all shadow-sm"
-          >
-            <User className="w-4 h-4 text-electric-400" />
-          </button>
+          {/* Reader Account / Sign In Pill */}
+          {readerAccount?.isLoggedIn ? (
+            <button
+              onClick={() => {
+                sound.playClick();
+                onOpenAccount();
+              }}
+              title={`Logged in as ${readerAccount.name || readerAccount.phone || readerAccount.email || 'Reader'}`}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25 hover:border-emerald-400 transition-all shadow-[0_0_12px_rgba(16,185,129,0.2)] group"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="max-w-[110px] truncate font-medium">
+                {readerAccount.name || (readerAccount.phone ? `${readerAccount.countryCode || ''} ${readerAccount.phone.slice(-4)}` : 'Reader')}
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                sound.playClick();
+                onOpenAccount();
+              }}
+              title="Sign In with Phone or Email OTP"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-void-900 hover:bg-void-800 text-slate-200 hover:text-gold-300 border border-void-700 hover:border-gold-500/50 transition-all shadow-sm"
+            >
+              <User className="w-3.5 h-3.5 text-electric-400" />
+              <span>Sign In</span>
+            </button>
+          )}
 
           {/* More Options Dropdown (...) */}
           <div className="relative" ref={dropdownRef}>
@@ -497,9 +521,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setMobileMenuOpen(false);
                   onOpenAccount();
                 }}
-                className="py-2 text-[11px] font-bold text-center rounded-xl bg-void-900 text-slate-300 border border-void-800 flex items-center justify-center gap-1 uppercase tracking-wider"
+                className={`py-2 text-[11px] font-bold text-center rounded-xl border flex items-center justify-center gap-1 uppercase tracking-wider ${
+                  readerAccount?.isLoggedIn
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                    : 'bg-void-900 text-slate-300 border border-void-800'
+                }`}
               >
-                <User className="w-3.5 h-3.5 text-electric-400" /> Account
+                <User className="w-3.5 h-3.5 text-electric-400" />
+                <span>{readerAccount?.isLoggedIn ? 'Profile' : 'Sign In'}</span>
               </button>
               <button
                 onClick={() => {
