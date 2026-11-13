@@ -18,10 +18,22 @@ import {
   Calendar,
   Lock,
   CreditCard,
-  Clock
+  Clock,
+  Key,
+  Smartphone,
+  Laptop
 } from 'lucide-react';
 import { ReaderAccount, Chapter } from '../../types';
-import { sendPhoneOtp, sendEmailOtp, verifyOtpAndLogin, logoutReaderAccount, OTP_VALIDITY_SECONDS } from '../../services/authService';
+import {
+  sendPhoneOtp,
+  sendEmailOtp,
+  verifyOtpAndLogin,
+  logoutReaderAccount,
+  loginWithPassword,
+  setPasswordForAccount,
+  isOwnerOrAdmin,
+  OTP_VALIDITY_SECONDS
+} from '../../services/authService';
 import { sound } from '../../data/soundEffects';
 
 interface UsersPageProps {
@@ -30,6 +42,7 @@ interface UsersPageProps {
   allChapters: Chapter[];
   onReadChapter: (chapterId: string) => void;
   onOpenPricing: () => void;
+  onOpenOwnerCommandCenter?: () => void;
 }
 
 const COUNTRY_CODES = [
@@ -48,13 +61,24 @@ export const UsersPage: React.FC<UsersPageProps> = ({
   onAccountUpdated,
   allChapters,
   onReadChapter,
-  onOpenPricing
+  onOpenPricing,
+  onOpenOwnerCommandCenter
 }) => {
-  const [authMethod, setAuthMethod] = useState<'phone' | 'email'>('phone');
+  const [authMethod, setAuthMethod] = useState<'phone' | 'email' | 'password'>('phone');
   const [countryCode, setCountryCode] = useState<string>('+91');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [emailAddress, setEmailAddress] = useState<string>('');
   const [displayName, setDisplayName] = useState<string>('');
+
+  // Password Login State
+  const [loginIdentifier, setLoginIdentifier] = useState<string>('');
+  const [loginPassword, setLoginPassword] = useState<string>('');
+  const [isLoggingInWithPw, setIsLoggingInWithPw] = useState<boolean>(false);
+
+  // Profile Password Setup State
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [isSavingPassword, setIsSavingPassword] = useState<boolean>(false);
+  const [passwordSetupSuccess, setPasswordSetupSuccess] = useState<string | null>(null);
 
   // OTP State
   const [otpSent, setOtpSent] = useState<boolean>(false);
@@ -95,6 +119,7 @@ export const UsersPage: React.FC<UsersPageProps> = ({
 
   const isUserLoggedIn = !!readerAccount.isLoggedIn;
   const isMember = readerAccount.membershipStatus === 'monthly_member';
+  const isOwner = isOwnerOrAdmin(readerAccount);
 
   const unlockedChapters = allChapters.filter(
     (c) =>
@@ -123,7 +148,7 @@ export const UsersPage: React.FC<UsersPageProps> = ({
         } else {
           setErrorMessage(res.message);
         }
-      } else {
+      } else if (authMethod === 'email') {
         const res = await sendEmailOtp(emailAddress);
         if (res.success) {
           setOtpSent(true);
@@ -140,6 +165,54 @@ export const UsersPage: React.FC<UsersPageProps> = ({
       setErrorMessage(err.message || 'Failed to send verification code.');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    sound.playClick();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsLoggingInWithPw(true);
+
+    try {
+      const res = await loginWithPassword(loginIdentifier, loginPassword);
+      if (res.success && res.account) {
+        onAccountUpdated(res.account);
+        setSuccessMessage(res.message);
+        sound.playCelestialChime();
+      } else {
+        setErrorMessage(res.message);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Password login failed.');
+    } finally {
+      setIsLoggingInWithPw(false);
+    }
+  };
+
+  const handleSavePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 4) {
+      setErrorMessage('Password must be at least 4 characters long.');
+      return;
+    }
+    sound.playClick();
+    setIsSavingPassword(true);
+    try {
+      const ok = await setPasswordForAccount(readerAccount.readerId, newPassword);
+      if (ok) {
+        setPasswordSetupSuccess('Password saved! You can now log into this VIP account on any device.');
+        sound.playCelestialChime();
+        setNewPassword('');
+        setTimeout(() => setPasswordSetupSuccess(null), 4000);
+      } else {
+        setErrorMessage('Failed to save password.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to set password.');
+    } finally {
+      setIsSavingPassword(false);
     }
   };
 
@@ -163,27 +236,25 @@ export const UsersPage: React.FC<UsersPageProps> = ({
   const handleAutoFillOtp = () => {
     if (previewOtp && previewOtp.length === 6) {
       sound.playClick();
-      const digits = previewOtp.split('');
-      setOtpDigits(digits);
+      setOtpDigits(previewOtp.split(''));
       otpInputRefs.current[5]?.focus();
     }
   };
 
   const handleVerifyOtp = async () => {
-    sound.playClick();
     const code = otpDigits.join('');
     if (code.length !== 6) {
-      setErrorMessage('Please enter all 6 digits of the verification code.');
+      setErrorMessage('Please enter all 6 digits of the code.');
       return;
     }
 
-    setIsVerifying(true);
+    sound.playClick();
     setErrorMessage(null);
-
-    const target = authMethod === 'phone' ? `${countryCode} ${phoneNumber}` : emailAddress;
+    setIsVerifying(true);
 
     try {
-      const res = await verifyOtpAndLogin(target, code, authMethod, displayName);
+      const target = authMethod === 'phone' ? `${countryCode} ${phoneNumber}` : emailAddress;
+      const res = await verifyOtpAndLogin(target, code, authMethod as 'phone' | 'email', displayName);
       if (res.success && res.account) {
         onAccountUpdated(res.account);
         setSuccessMessage(`Verified Reader ID: ${res.account.readerId} — Starting with Chapter 1...`);
@@ -212,447 +283,257 @@ export const UsersPage: React.FC<UsersPageProps> = ({
     sound.playClick();
     const guest = logoutReaderAccount();
     onAccountUpdated(guest);
-    setSuccessMessage('You have logged out.');
+    setSuccessMessage('Logged out from this device.');
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10 animate-fade-in">
-      
-      {/* Header Banner */}
-      <div className="text-center space-y-3 max-w-2xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/30 text-gold-400 text-xs font-bold uppercase tracking-widest">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>SUKA SRI ORIGINALS Reader Identity</span>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
+      {/* Top Banner / Hero */}
+      <div className="relative p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-void-950 via-void-900 to-void-950 border border-gold-500/30 overflow-hidden shadow-[0_0_50px_rgba(255,215,0,0.15)]">
+        <div className="relative z-10 max-w-2xl space-y-2">
+          <span className="px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/30 text-gold-400 font-mono text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5" />
+            Verified Reader Network • Multi-Device Sync
+          </span>
+          <h1 className="font-display text-2xl sm:text-4xl font-black text-white">
+            SUKA SRI Reader Portal
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-300">
+            Sign in with phone OTP, email, or your account password. Access your VIP membership and unlocked chapters across any phone, laptop, or tablet.
+          </p>
         </div>
-        <h1 className="font-display text-3xl sm:text-5xl font-black text-white tracking-wide uppercase">
-          {isUserLoggedIn ? 'Reader Dashboard' : 'Users & Reader Portal'}
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-          {isUserLoggedIn
-            ? 'Manage your subscriptions, unlocked canonical chapters, and personalized reader security credentials.'
-            : 'Sign in with your Email or Mobile Phone Number via secure OTP to access your personal manga vault.'}
-        </p>
+
+        {/* Decorative corner glows */}
+        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-gold-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-electric-500/10 blur-3xl pointer-events-none" />
       </div>
 
-      {/* Notifications */}
+      {/* Alerts */}
       {errorMessage && (
-        <div className="max-w-xl mx-auto p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+        <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-3 animate-shake">
+          <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
           <span>{errorMessage}</span>
         </div>
       )}
 
       {successMessage && (
-        <div className="max-w-xl mx-auto p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+        <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-3">
+          <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
           <span>{successMessage}</span>
         </div>
       )}
 
-      {/* MAIN CONTAINER */}
-      {!isUserLoggedIn ? (
-        
-        /* LOGIN / SIGN IN FORM */
-        <div className="max-w-xl mx-auto p-6 sm:p-8 rounded-3xl bg-void-900 border border-gold-500/30 shadow-[0_0_60px_rgba(255,215,0,0.15)] space-y-6">
-          
-          {/* Method Switcher */}
-          <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-void-950 border border-void-800">
-            <button
-              type="button"
-              onClick={() => {
-                sound.playClick();
-                setAuthMethod('phone');
-                setOtpSent(false);
-                setErrorMessage(null);
-              }}
-              className={`py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
-                authMethod === 'phone'
-                  ? 'bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 shadow-md font-black'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Phone className="w-4 h-4" />
-              <span>Mobile Phone OTP</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                sound.playClick();
-                setAuthMethod('email');
-                setOtpSent(false);
-                setErrorMessage(null);
-              }}
-              className={`py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
-                authMethod === 'email'
-                  ? 'bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 shadow-md font-black'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Mail className="w-4 h-4" />
-              <span>Email Address OTP</span>
-            </button>
-          </div>
-
-          {!otpSent ? (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                  Your Name / Reader Handle <span className="text-slate-500">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Shin Takamori"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-void-950 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-gold-500/60 transition-colors"
-                />
-              </div>
-
-              {authMethod === 'phone' ? (
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                    Phone Number <span className="text-gold-400">*</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="relative w-36 shrink-0">
-                      <select
-                        value={countryCode}
-                        onChange={(e) => setCountryCode(e.target.value)}
-                        className="w-full appearance-none px-3 py-3 rounded-xl bg-void-950 border border-void-800 text-white text-xs font-mono focus:outline-none focus:border-gold-500/60 transition-colors pr-7"
-                      >
-                        {COUNTRY_CODES.map((c) => (
-                          <option key={c.code} value={c.code} className="bg-void-950 text-white">
-                            {c.flag} {c.code}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-
-                    <input
-                      type="tel"
-                      placeholder="95027 14652"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      className="flex-1 px-4 py-3 rounded-xl bg-void-950 border border-void-800 text-white placeholder-slate-600 text-xs font-mono focus:outline-none focus:border-gold-500/60 transition-colors"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-1.5">
-                    A secure 6-digit one-time password will be dispatched to your phone number.
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                    Email Address <span className="text-gold-400">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="reader@sukasri.universe"
-                    value={emailAddress}
-                    onChange={(e) => setEmailAddress(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-void-950 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-gold-500/60 transition-colors"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1.5">
-                    We will send a 6-digit verification code to this email address.
-                  </p>
-                </div>
-              )}
-
-              <button
-                type="button"
-                disabled={isSending || (authMethod === 'phone' ? !phoneNumber.trim() : !emailAddress.trim())}
-                onClick={handleSendOtp}
-                className="w-full py-4 rounded-xl bg-gradient-to-r from-gold-500 via-amber-500 to-yellow-600 hover:brightness-110 text-void-950 font-display text-xs font-black uppercase tracking-wider shadow-[0_0_25px_rgba(255,215,0,0.3)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {isSending ? (
-                  <>
-                    <RotateCcw className="w-4 h-4 animate-spin" />
-                    <span>Sending Code...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Send Verification Code (OTP)</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </div>
-          ) : (
-            
-            /* OTP VERIFICATION STEP */
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
-              {previewOtp && (
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-violet-950/60 via-void-900 to-electric-950/60 border border-electric-400/40 shadow-lg space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-electric-400 flex items-center gap-1.5">
-                      <KeyRound className="w-4 h-4" />
-                      <span>Simulated Gateway Notification</span>
-                    </span>
-                    <span className={`text-[10px] font-mono font-bold flex items-center gap-1 px-2.5 py-0.5 rounded-full border ${
-                      otpSecondsLeft === 0
-                        ? 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse'
-                        : otpSecondsLeft <= 20
-                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse'
-                        : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                    }`}>
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>{otpSecondsLeft === 0 ? 'EXPIRED (00:00)' : `Valid for ${Math.floor(otpSecondsLeft / 60)}:${(otpSecondsLeft % 60).toString().padStart(2, '0')} (65s)`}</span>
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-200">
-                    Your verification code is:{' '}
-                    <strong className="text-gold-400 font-mono text-lg tracking-widest bg-void-950 px-2.5 py-0.5 rounded border border-gold-500/40">
-                      {previewOtp}
-                    </strong>
-                  </div>
-                  {otpSecondsLeft === 0 ? (
-                    <div className="text-xs text-red-400 font-semibold bg-red-950/40 border border-red-500/30 px-3 py-1.5 rounded-lg">
-                      ⚠️ This OTP has expired (65 seconds limit). Click "Resend Code" below to receive a new code.
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleAutoFillOtp}
-                      className="text-[11px] font-bold text-electric-300 hover:text-white underline cursor-pointer"
-                    >
-                      ⚡ Click to 1-Tap Auto-Fill this OTP
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <div className="text-center space-y-1">
-                <p className="text-xs text-slate-300">Enter the 6-digit code sent to:</p>
-                <p className="text-sm font-mono font-bold text-gold-400">
-                  {authMethod === 'phone' ? `${countryCode} ${phoneNumber}` : emailAddress}
-                </p>
-                <p className="text-[10px] text-slate-400 font-mono">
-                  (OTP is strictly valid for 65 seconds only)
-                </p>
-              </div>
-
-              {/* 6 Digit Input Boxes */}
-              <div className="flex items-center justify-center gap-2 sm:gap-3">
-                {otpDigits.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    ref={(el) => (otpInputRefs.current[idx] = el)}
-                    type="text"
-                    maxLength={1}
-                    value={digit}
-                    disabled={otpSecondsLeft === 0}
-                    onChange={(e) => handleDigitChange(idx, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(idx, e)}
-                    className={`w-12 h-14 sm:w-14 sm:h-16 rounded-2xl bg-void-950 border text-center text-2xl font-mono font-black transition-all ${
-                      otpSecondsLeft === 0
-                        ? 'border-red-900/50 text-slate-600 cursor-not-allowed opacity-60'
-                        : 'border-void-800 focus:border-gold-500 text-white focus:outline-none focus:shadow-[0_0_20px_rgba(255,215,0,0.3)]'
-                    }`}
-                  />
-                ))}
-              </div>
-
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <button
-                  type="button"
-                  onClick={() => {
-                    sound.playClick();
-                    setOtpSent(false);
-                  }}
-                  className="hover:text-slate-200 underline"
-                >
-                  Change {authMethod === 'phone' ? 'Phone Number' : 'Email'}
-                </button>
-
-                {resendCooldown > 0 && otpSecondsLeft > 0 ? (
-                  <span className="text-[11px] font-mono text-slate-500">
-                    Resend code in {resendCooldown}s
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleSendOtp}
-                    className="text-gold-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Resend Code (65s OTP)</span>
-                  </button>
-                )}
-              </div>
-
-              <button
-                type="button"
-                disabled={isVerifying || otpDigits.join('').length !== 6 || otpSecondsLeft === 0}
-                onClick={handleVerifyOtp}
-                className="w-full py-4 rounded-xl bg-gradient-to-r from-electric-500 via-cyan-500 to-teal-500 hover:brightness-110 text-void-950 font-display text-xs font-black uppercase tracking-wider shadow-[0_0_25px_rgba(0,229,255,0.3)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {isVerifying ? (
-                  <>
-                    <RotateCcw className="w-4 h-4 animate-spin" />
-                    <span>Verifying Code...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Verify & Enter SUKA SRI</span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
-          <div className="pt-4 border-t border-void-800/80 text-center text-[10px] text-slate-500 flex items-center justify-center gap-2">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Protected by SUKA SRI Zero-Trust Cryptographic Engine</span>
-          </div>
-        </div>
-
-      ) : (
-
-        /* LOGGED IN DASHBOARD */
+      {/* Main View: Logged In vs Logged Out */}
+      {isUserLoggedIn ? (
         <div className="space-y-8">
-          
-          {/* Top User Profile Header */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-void-950 via-void-900 to-void-950 border border-gold-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-[0_0_40px_rgba(255,215,0,0.1)]">
-            <div className="flex items-center gap-5">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-gold-500 to-amber-600 flex items-center justify-center font-display text-3xl font-black text-void-950 shadow-[0_0_30px_rgba(255,215,0,0.35)] shrink-0">
+          {/* Active Profile Card */}
+          <div className="p-6 rounded-3xl bg-void-950 border border-gold-500/30 shadow-[0_0_30px_rgba(255,215,0,0.1)] flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-gold-500 to-amber-600 flex items-center justify-center font-display text-2xl sm:text-3xl font-black text-void-950 shadow-[0_0_30px_rgba(255,215,0,0.35)] shrink-0">
                 {readerAccount.name.slice(0, 2).toUpperCase()}
               </div>
               <div className="space-y-1">
-                <div className="flex items-center gap-2.5">
-                  <h2 className="font-display text-2xl font-black text-white">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-display text-xl sm:text-2xl font-bold text-white">
                     {readerAccount.name}
                   </h2>
-                  {isMember ? (
-                    <span className="px-3 py-1 rounded-full bg-gold-500/20 border border-gold-500/50 text-gold-400 text-xs font-black uppercase tracking-wider flex items-center gap-1">
-                      <Crown className="w-3 h-3 text-gold-400" />
-                      VIP PASS
+                  {isMember && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-gold-500/20 border border-gold-500/40 text-[10px] font-black text-gold-400 uppercase tracking-widest flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      VIP MEMBER (₹19/mo)
                     </span>
-                  ) : (
-                    <span className="px-2.5 py-0.5 rounded-full bg-void-950 border border-void-800 text-slate-400 text-[10px] uppercase font-bold">
-                      Standard Reader
+                  )}
+                  {isOwner && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-[10px] font-black text-purple-300 uppercase tracking-widest">
+                      OWNER / ADMIN
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-slate-400 flex flex-wrap items-center gap-3">
-                  {readerAccount.phone && (
-                    <span className="flex items-center gap-1 text-slate-300 font-mono">
+                <p className="text-xs text-slate-400 flex items-center gap-2">
+                  {readerAccount.phone ? (
+                    <>
                       <Phone className="w-3.5 h-3.5 text-electric-400" />
-                      {readerAccount.phone}
-                    </span>
-                  )}
-                  {readerAccount.email && (
-                    <span className="flex items-center gap-1 text-slate-300">
+                      <span>{readerAccount.phone}</span>
+                    </>
+                  ) : (
+                    <>
                       <Mail className="w-3.5 h-3.5 text-electric-400" />
-                      {readerAccount.email}
-                    </span>
+                      <span>{readerAccount.email}</span>
+                    </>
                   )}
-                </div>
-                <div className="flex flex-wrap items-center gap-3 pt-2">
-                  <div className="text-[11px] text-slate-400 font-mono">
-                    Verified Reader ID: <strong className="text-gold-400">{readerAccount.readerId}</strong>
-                  </div>
-                  <button
-                    onClick={() => {
-                      sound.playClick();
-                      const startingChapter = allChapters.find((c) => c.chapterNumber === 1) || allChapters[0];
-                      onReadChapter(startingChapter?.id || 'sample-ch-1');
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-display text-[10px] font-black uppercase tracking-wider hover:brightness-110 shadow-sm cursor-pointer"
-                  >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    <span>Start with Chapter 1</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {!isMember && (
+                </p>
+                <p className="text-xs text-slate-400 font-mono">
+                  Verified Reader ID: <strong className="text-gold-400">{readerAccount.readerId}</strong>
+                </p>
                 <button
                   onClick={() => {
                     sound.playClick();
-                    onOpenPricing();
+                    const startingChapter = allChapters.find((c) => c.chapterNumber === 1) || allChapters[0];
+                    onReadChapter(startingChapter?.id || 'sample-ch-1');
                   }}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-display text-xs font-black uppercase tracking-wider hover:brightness-110 transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-display text-[11px] font-black uppercase tracking-wider hover:brightness-110 shadow-md cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Get VIP Pass (₹19/mo)</span>
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Start with Chapter 1</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {isOwner && onOpenOwnerCommandCenter && (
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    onOpenOwnerCommandCenter();
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-purple-200 font-bold text-xs flex items-center gap-2 transition-all shadow-md"
+                >
+                  <Layers className="w-4 h-4 text-purple-300" />
+                  <span>Owner Command Center</span>
                 </button>
               )}
+
               <button
                 onClick={handleLogout}
-                className="px-4 py-2.5 rounded-xl bg-void-900 border border-void-800 text-slate-300 hover:text-rose-400 hover:border-rose-500/40 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-void-900 border border-void-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 text-xs font-bold flex items-center gap-2 transition-all"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-4 h-4" />
                 <span>Sign Out</span>
               </button>
             </div>
           </div>
 
-          {/* Key Metrics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-5 rounded-2xl bg-void-900 border border-void-800 space-y-1">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Access Privileges</span>
+          {/* MULTI-DEVICE PASSWORD ACCESS CARD */}
+          <div className="p-6 rounded-3xl bg-void-950 border border-electric-400/30 shadow-[0_0_30px_rgba(0,229,255,0.08)] space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-electric-500/10 border border-electric-500/30 flex items-center justify-center text-electric-400">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-display text-base font-bold text-white flex items-center gap-2">
+                    Multi-Device Password Access
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">
+                      {readerAccount.passwordHash ? 'Password Active' : 'Setup Required'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Use your phone number/email and password to log in on any device without losing your VIP membership.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {passwordSetupSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" /> {passwordSetupSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleSavePassword} className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="password"
+                placeholder={readerAccount.passwordHash ? 'Change account password (min 4 characters)...' : 'Set account password (min 4 characters)...'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="flex-1 px-4 py-3 rounded-xl bg-void-900 border border-void-800 text-white text-xs outline-none focus:border-electric-400 transition-colors"
+              />
+              <button
+                type="submit"
+                disabled={isSavingPassword || !newPassword || newPassword.length < 4}
+                className="px-6 py-3 rounded-xl bg-electric-500 hover:bg-electric-400 disabled:opacity-50 text-void-950 font-bold text-xs transition-all flex items-center justify-center gap-2 shrink-0"
+              >
+                <KeyRound className="w-4 h-4" />
+                <span>Save Password for Multi-Device</span>
+              </button>
+            </form>
+          </div>
+
+          {/* Membership Tier & Unlocked Status */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 rounded-2xl bg-void-950 border border-void-800 space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                Subscription Status
+              </span>
               <div className="font-display text-xl font-black text-gold-400">
-                {isMember ? 'All 450 Chapters' : `${unlockedChapters.length} Chapters`}
+                {isMember ? 'VIP Monthly Pass' : 'Free Reader Tier'}
               </div>
-              <p className="text-[11px] text-slate-500">
-                {isMember ? 'VIP pass grants full 3-part access' : 'Individual chapter licenses'}
+              <p className="text-xs text-slate-400">
+                {isMember
+                  ? `Valid until ${readerAccount.membershipValidUntil || 'Next month'}`
+                  : 'Upgrade to read all released chapters.'}
+              </p>
+              {!isMember && (
+                <button
+                  onClick={onOpenPricing}
+                  className="mt-3 px-4 py-2 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-bold text-xs flex items-center gap-1.5 shadow-md"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Get VIP Pass (₹19/mo)</span>
+                </button>
+              )}
+            </div>
+
+            <div className="p-6 rounded-2xl bg-void-950 border border-void-800 space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                Unlocked Manga Chapters
+              </span>
+              <div className="font-display text-2xl font-black text-electric-400">
+                {isMember ? 'All Released Chapters' : `${unlockedChapters.length} Chapters`}
+              </div>
+              <p className="text-xs text-slate-400">
+                {isMember
+                  ? 'All chapters unlocked for reading & licensed downloads.'
+                  : 'Free samples & individually purchased chapters.'}
               </p>
             </div>
 
-            <div className="p-5 rounded-2xl bg-void-900 border border-void-800 space-y-1">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Payment Security</span>
-              <div className="font-display text-xl font-black text-electric-400 flex items-center gap-1.5">
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                <span>HMAC Verified</span>
+            <div className="p-6 rounded-2xl bg-void-950 border border-void-800 space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                Fortress Watermark Signature
+              </span>
+              <div className="font-mono text-xs font-bold text-emerald-400 truncate">
+                {readerAccount.watermarkSignature}
               </div>
-              <p className="text-[11px] text-slate-500">
-                Transactions signed with SHA-256
-              </p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-void-900 border border-void-800 space-y-1">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Saga Progress</span>
-              <div className="font-display text-xl font-black text-violet-400">
-                28 Canonical Arcs
-              </div>
-              <p className="text-[11px] text-slate-500">
-                Part 1 • Part 2 • Part 3 Complete
+              <p className="text-xs text-slate-400">
+                Cryptographically bound to your reader identity.
               </p>
             </div>
           </div>
 
-          {/* Unlocked Reading Library */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-void-800 pb-3">
-              <h3 className="font-display text-lg font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-gold-400" />
-                <span>Your Unlocked Manga Reading Vault</span>
-              </h3>
+          {/* Reader Library (Unlocked Chapters) */}
+          <div className="p-6 rounded-3xl bg-void-950 border border-void-800 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-display text-lg font-bold text-white flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-gold-400" />
+                  <span>Your Unlocked Manga Library</span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {isMember ? 'Full saga access unlocked via VIP monthly membership.' : 'Chapters you have unlocked for reading.'}
+                </p>
+              </div>
               <span className="text-xs font-mono text-slate-400">
-                {unlockedChapters.length} Chapters Available
+                {unlockedChapters.length} Available
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {unlockedChapters.slice(0, 9).map((ch) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {unlockedChapters.map((ch) => (
                 <div
                   key={ch.id}
-                  className="p-4 rounded-2xl bg-void-900 border border-void-800 hover:border-gold-500/40 transition-all flex flex-col justify-between gap-3 group"
+                  className="p-4 rounded-2xl bg-void-900 border border-void-800 hover:border-gold-500/40 flex items-center justify-between gap-3 transition-colors group"
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                      <span>Chapter {String(ch.chapterNumber).padStart(3, '0')}</span>
-                      <span className="text-emerald-400 font-bold">UNLOCKED</span>
-                    </div>
-                    <h4 className="font-display text-sm font-bold text-white group-hover:text-gold-400 transition-colors line-clamp-1">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-gold-400 font-mono font-bold block">
+                      Chapter {ch.chapterNumber}
+                    </span>
+                    <h4 className="font-bold text-white text-xs truncate group-hover:text-gold-300 transition-colors">
                       {ch.title}
                     </h4>
-                    <p className="text-xs text-slate-400">{ch.arcTitle}</p>
+                    <span className="text-[10px] text-slate-500 block truncate">
+                      {ch.arcTitle}
+                    </span>
                   </div>
 
                   <button
@@ -660,19 +541,348 @@ export const UsersPage: React.FC<UsersPageProps> = ({
                       sound.playClick();
                       onReadChapter(ch.id);
                     }}
-                    className="w-full py-2.5 rounded-xl bg-gold-500/15 border border-gold-500/40 text-gold-300 hover:bg-gold-500 hover:text-void-950 font-display text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-gold-500/15 border border-gold-500/30 text-gold-300 font-bold text-xs hover:bg-gold-500 hover:text-void-950 transition-all shrink-0 flex items-center gap-1"
                   >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    <span>Read Chapter</span>
+                    <span>Read</span>
+                    <ArrowRight className="w-3 h-3" />
                   </button>
                 </div>
               ))}
             </div>
           </div>
+        </div>
+      ) : (
 
+        /* LOGGED OUT VIEW: SIGN IN / OTP / PASSWORD */
+        <div className="max-w-xl mx-auto p-6 sm:p-8 rounded-3xl bg-void-950 border border-gold-500/40 shadow-[0_0_40px_rgba(255,215,0,0.15)] space-y-6">
+          <div className="text-center space-y-1">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-white">
+              Reader Access &amp; Multi-Device Login
+            </h2>
+            <p className="text-xs text-slate-400">
+              Verify your mobile number, email, or enter your account password to access your VIP subscription.
+            </p>
+          </div>
+
+          {/* TABS: Mobile OTP vs Email OTP vs Password */}
+          <div className="grid grid-cols-3 gap-2 p-1.5 rounded-2xl bg-void-900 border border-void-800">
+            <button
+              onClick={() => {
+                sound.playClick();
+                setAuthMethod('phone');
+                setOtpSent(false);
+                setErrorMessage(null);
+              }}
+              className={`py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+                authMethod === 'phone'
+                  ? 'bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-black shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span>Mobile OTP</span>
+            </button>
+
+            <button
+              onClick={() => {
+                sound.playClick();
+                setAuthMethod('email');
+                setOtpSent(false);
+                setErrorMessage(null);
+              }}
+              className={`py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+                authMethod === 'email'
+                  ? 'bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-black shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Email OTP</span>
+            </button>
+
+            <button
+              onClick={() => {
+                sound.playClick();
+                setAuthMethod('password');
+                setOtpSent(false);
+                setErrorMessage(null);
+              }}
+              className={`py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+                authMethod === 'password'
+                  ? 'bg-gradient-to-r from-electric-500 to-cyan-500 text-void-950 font-black shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Password</span>
+            </button>
+          </div>
+
+          {/* PASSWORD LOGIN FORM */}
+          {authMethod === 'password' ? (
+            <form onSubmit={handlePasswordLogin} className="space-y-4">
+              <div className="p-3 rounded-xl bg-electric-950/30 border border-electric-500/30 text-[11px] text-electric-300 flex items-center gap-2">
+                <Laptop className="w-4 h-4 shrink-0 text-electric-400" />
+                <span>Log in across any phone, laptop, or tablet with the password you configured.</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Phone Number, Email, or Reader ID <span className="text-gold-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 9502714652 or reader@sukasri.universe"
+                  value={loginIdentifier}
+                  onChange={(e) => setLoginIdentifier(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-void-900 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-electric-400 transition-colors"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Account Password <span className="text-gold-400">*</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="Enter your account password..."
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-void-900 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-electric-400 transition-colors"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoggingInWithPw || !loginIdentifier || !loginPassword}
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-electric-500 to-cyan-500 hover:brightness-110 text-void-950 font-display text-xs font-black uppercase tracking-wider shadow-[0_0_25px_rgba(0,229,255,0.3)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                {isLoggingInWithPw ? (
+                  <>
+                    <RotateCcw className="w-4 h-4 animate-spin" />
+                    <span>Verifying Credentials Across Devices...</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>Log In with Password</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+          ) : (
+
+            /* OTP FORM */
+            !otpSent ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                    Your Name / Reader Handle <span className="text-slate-500">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Shin Takamori"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-void-900 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-gold-500/60 transition-colors"
+                  />
+                </div>
+
+                {authMethod === 'phone' ? (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                      Phone Number <span className="text-gold-400">*</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="relative w-36 shrink-0">
+                        <select
+                          value={countryCode}
+                          onChange={(e) => setCountryCode(e.target.value)}
+                          className="w-full appearance-none px-3 py-3 rounded-xl bg-void-900 border border-void-800 text-white text-xs font-mono focus:outline-none focus:border-gold-500/60 transition-colors pr-7"
+                        >
+                          {COUNTRY_CODES.map((c) => (
+                            <option key={c.code} value={c.code} className="bg-void-950 text-white">
+                              {c.flag} {c.code}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+
+                      <input
+                        type="tel"
+                        placeholder="95027 14652"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9]/g, ''))}
+                        className="flex-1 px-4 py-3 rounded-xl bg-void-900 border border-void-800 text-white placeholder-slate-600 text-xs font-mono focus:outline-none focus:border-gold-500/60 transition-colors"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                      Email Address <span className="text-gold-400">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="reader@sukasri.universe"
+                      value={emailAddress}
+                      onChange={(e) => setEmailAddress(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl bg-void-900 border border-void-800 text-white placeholder-slate-600 text-xs focus:outline-none focus:border-gold-500/60 transition-colors"
+                    />
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  disabled={isSending || (authMethod === 'phone' ? !phoneNumber.trim() : !emailAddress.trim())}
+                  onClick={handleSendOtp}
+                  className="w-full py-4 rounded-xl bg-gradient-to-r from-gold-500 via-amber-500 to-yellow-600 hover:brightness-110 text-void-950 font-display text-xs font-black uppercase tracking-wider shadow-[0_0_25px_rgba(255,215,0,0.3)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {isSending ? (
+                    <>
+                      <RotateCcw className="w-4 h-4 animate-spin" />
+                      <span>Sending Code (65s OTP)...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Send Verification Code (OTP)</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              
+              /* OTP VERIFICATION STEP */
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                {previewOtp && (
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-violet-950/60 via-void-900 to-electric-950/60 border border-electric-400/40 shadow-lg space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-electric-400 flex items-center gap-1.5">
+                        <KeyRound className="w-4 h-4" />
+                        <span>Simulated Gateway Notification</span>
+                      </span>
+                      <span className={`text-[10px] font-mono font-bold flex items-center gap-1 px-2.5 py-0.5 rounded-full border ${
+                        otpSecondsLeft === 0
+                          ? 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse'
+                          : otpSecondsLeft <= 20
+                          ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse'
+                          : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                      }`}>
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{otpSecondsLeft === 0 ? 'EXPIRED (00:00)' : `Valid for ${Math.floor(otpSecondsLeft / 60)}:${(otpSecondsLeft % 60).toString().padStart(2, '0')} (65s)`}</span>
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-200">
+                      Your verification code is:{' '}
+                      <strong className="text-gold-400 font-mono text-lg tracking-widest bg-void-950 px-2.5 py-0.5 rounded border border-gold-500/40">
+                        {previewOtp}
+                      </strong>
+                    </div>
+                    {otpSecondsLeft === 0 ? (
+                      <div className="text-xs text-red-400 font-semibold bg-red-950/40 border border-red-500/30 px-3 py-1.5 rounded-lg">
+                        ⚠️ This OTP has expired (65 seconds limit). Click "Resend Code" below to receive a new code.
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleAutoFillOtp}
+                        className="text-[11px] font-bold text-electric-300 hover:text-white underline cursor-pointer"
+                      >
+                        ⚡ Click to 1-Tap Auto-Fill this OTP
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div className="text-center space-y-1">
+                  <p className="text-xs text-slate-300">Enter the 6-digit code sent to:</p>
+                  <p className="text-sm font-mono font-bold text-gold-400">
+                    {authMethod === 'phone' ? `${countryCode} ${phoneNumber}` : emailAddress}
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-mono">
+                    (OTP is strictly valid for 65 seconds only)
+                  </p>
+                </div>
+
+                {/* 6 Digit Input Boxes */}
+                <div className="flex items-center justify-center gap-2 sm:gap-3">
+                  {otpDigits.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      ref={(el) => (otpInputRefs.current[idx] = el)}
+                      type="text"
+                      maxLength={1}
+                      value={digit}
+                      disabled={otpSecondsLeft === 0}
+                      onChange={(e) => handleDigitChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(idx, e)}
+                      className={`w-12 h-14 sm:w-14 sm:h-16 rounded-2xl bg-void-900 border text-center text-2xl font-mono font-black transition-all ${
+                        otpSecondsLeft === 0
+                          ? 'border-red-900/50 text-slate-600 cursor-not-allowed opacity-60'
+                          : 'border-void-800 focus:border-gold-500 text-white focus:outline-none focus:shadow-[0_0_20px_rgba(255,215,0,0.35)]'
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                {/* Resend and Change Number */}
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sound.playClick();
+                      setOtpSent(false);
+                    }}
+                    className="hover:text-slate-200 underline"
+                  >
+                    Change {authMethod === 'phone' ? 'Phone Number' : 'Email'}
+                  </button>
+
+                  {resendCooldown > 0 && otpSecondsLeft > 0 ? (
+                    <span className="text-xs font-mono text-slate-500">
+                      Resend in {resendCooldown}s
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      className="text-gold-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Resend Code (65s OTP)</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Submit Verification Button */}
+                <button
+                  type="button"
+                  disabled={isVerifying || otpDigits.join('').length !== 6 || otpSecondsLeft === 0}
+                  onClick={handleVerifyOtp}
+                  className="w-full py-4 rounded-xl bg-gradient-to-r from-electric-500 via-cyan-500 to-teal-500 hover:brightness-110 text-void-950 font-display text-xs font-black uppercase tracking-wider shadow-[0_0_25px_rgba(0,229,255,0.3)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {isVerifying ? (
+                    <>
+                      <RotateCcw className="w-4 h-4 animate-spin" />
+                      <span>Verifying Security Code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Verify Code &amp; Start Reading</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )
+          )}
         </div>
       )}
-
     </div>
   );
 };

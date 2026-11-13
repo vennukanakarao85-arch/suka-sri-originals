@@ -18,10 +18,14 @@ import {
   ChevronRight,
   Sliders,
   Layers,
+  Key,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { sound } from '../../data/soundEffects';
 import { Logo3D } from './Logo3D';
 import { ReaderAccount } from '../../types';
+import { isOwnerOrAdmin, verifyOwnerPasscode, setOwnerSession } from '../../services/authService';
 
 interface NavbarProps {
   activeTab: string;
@@ -92,21 +96,57 @@ export const Navbar: React.FC<NavbarProps> = ({
     sound.playClick();
   };
 
-  // Concise center navigation tabs
-  const navItems = [
+  // Owner Authentication State & Passcode Modal
+  const [ownerPasscodeModalOpen, setOwnerPasscodeModalOpen] = useState(false);
+  const [passcodeInput, setPasscodeInput] = useState('');
+  const [passcodeError, setPasscodeError] = useState<string | null>(null);
+
+  const isOwner = isOwnerOrAdmin(readerAccount);
+
+  interface NavItem {
+    id: string;
+    label: string;
+    icon: any;
+    highlight?: boolean;
+  }
+
+  // Concise center navigation tabs: Normal readers only see Universe, Manga, Characters, Worlds, Users
+  const publicNavItems: NavItem[] = [
     { id: 'home', label: 'Universe', icon: Sparkles },
     { id: 'manga', label: 'Manga', icon: BookOpen },
     { id: 'characters', label: 'Characters', icon: Sparkles },
     { id: 'lore', label: 'Worlds', icon: Compass },
     { id: 'users', label: 'Users', icon: User },
-    { id: 'studio', label: 'Studio', icon: Edit3, highlight: true },
   ];
+
+  // Studio and Owner Command Center are strictly accessible only to Owner/Admin
+  const navItems: NavItem[] = isOwner
+    ? [
+        ...publicNavItems,
+        { id: 'studio', label: 'Studio', icon: Edit3, highlight: true },
+        { id: 'owner', label: 'Admin', icon: Layers, highlight: true },
+      ]
+    : publicNavItems;
 
   const handleNavClick = (id: string) => {
     sound.playClick();
     onSelectTab(id);
     setMobileMenuOpen(false);
     setMoreDropdownOpen(false);
+  };
+
+  const handleUnlockOwner = (e: React.FormEvent) => {
+    e.preventDefault();
+    sound.playClick();
+    if (verifyOwnerPasscode(passcodeInput)) {
+      setOwnerPasscodeModalOpen(false);
+      setPasscodeInput('');
+      setPasscodeError(null);
+      sound.playCelestialChime();
+      onSelectTab('studio');
+    } else {
+      setPasscodeError('Invalid Owner Passcode. Enter 9502714652 or 8842.');
+    }
   };
 
   return (
@@ -385,6 +425,71 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                     <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300" />
                   </button>
+
+                  {/* Owner & Studio Gateway */}
+                  {isOwner ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          sound.playClick();
+                          handleNavClick('owner');
+                        }}
+                        className="w-full px-3 py-2.5 rounded-xl text-left text-xs font-semibold flex items-center justify-between hover:bg-gold-500/10 transition-all group"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Layers className="w-4 h-4 text-gold-400 group-hover:scale-110 transition-transform" />
+                          <div>
+                            <div className="text-slate-200 group-hover:text-gold-300 font-medium">
+                              Owner Command Center
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              Transactions, Users & Pricing
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gold-500/20 text-gold-400 border border-gold-500/30">
+                          Admin
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          sound.playClick();
+                          setOwnerSession(false);
+                          setMoreDropdownOpen(false);
+                          onSelectTab('home');
+                        }}
+                        className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center justify-between hover:bg-rose-500/10 transition-all text-rose-300"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Lock className="w-3.5 h-3.5 text-rose-400" />
+                          <span>Lock Studio &amp; Admin</span>
+                        </div>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        sound.playClick();
+                        setMoreDropdownOpen(false);
+                        setOwnerPasscodeModalOpen(true);
+                      }}
+                      className="w-full px-3 py-2.5 rounded-xl text-left text-xs font-semibold flex items-center justify-between hover:bg-purple-500/10 transition-all group"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Key className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+                        <div>
+                          <div className="text-slate-200 group-hover:text-purple-300 font-medium">
+                            Owner &amp; Studio Unlock
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            Author Master Key Authentication
+                          </div>
+                        </div>
+                      </div>
+                      <Lock className="w-3.5 h-3.5 text-slate-500" />
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -561,6 +666,71 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 Read Ch. 1
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OWNER PASSCODE UNLOCK MODAL */}
+      {ownerPasscodeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-void-950/85 backdrop-blur-xl animate-fade-in">
+          <div className="relative w-full max-w-md p-6 sm:p-8 rounded-3xl bg-void-900 border border-gold-500/40 shadow-[0_0_50px_rgba(255,215,0,0.25)] space-y-5 text-center">
+            <button
+              onClick={() => {
+                sound.playClick();
+                setOwnerPasscodeModalOpen(false);
+                setPasscodeError(null);
+                setPasscodeInput('');
+              }}
+              className="absolute top-4 right-4 p-2 rounded-xl bg-void-950 border border-void-800 text-slate-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-gold-500/15 border border-gold-500/40 flex items-center justify-center text-gold-400">
+              <Key className="w-7 h-7" />
+            </div>
+
+            <div>
+              <span className="px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/30 text-gold-400 font-mono text-[11px] font-bold uppercase tracking-wider">
+                Author &amp; Owner Gateway
+              </span>
+              <h3 className="font-display text-xl font-black text-white mt-2">
+                Unlock Creator Studio &amp; Admin
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Enter your Master Owner Passcode (e.g. <code>9502714652</code> or <code>8842</code>).
+              </p>
+            </div>
+
+            <form onSubmit={handleUnlockOwner} className="space-y-4">
+              <div>
+                <input
+                  type="password"
+                  value={passcodeInput}
+                  onChange={(e) => setPasscodeInput(e.target.value)}
+                  placeholder="Enter Master Passcode..."
+                  className="w-full px-4 py-3 rounded-xl bg-void-950 border border-void-800 focus:border-gold-400 text-white placeholder-slate-600 text-center font-mono tracking-widest text-lg outline-none"
+                  autoFocus
+                />
+                {passcodeError && (
+                  <p className="text-xs text-rose-400 mt-2 font-medium">
+                    {passcodeError}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 hover:from-gold-400 hover:to-amber-500 text-void-950 font-bold text-xs uppercase tracking-wider shadow-lg shadow-gold-500/20 transition-all flex items-center justify-center gap-2"
+              >
+                <Unlock className="w-4 h-4" />
+                <span>Verify &amp; Unlock Studio</span>
+              </button>
+            </form>
+
+            <div className="text-[10px] text-slate-500 pt-2 border-t border-void-800">
+              Official Author: Srinivas Vennu • Payee: Kanaka Rao Vennu (9502714652@axl)
             </div>
           </div>
         </div>

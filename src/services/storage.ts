@@ -182,7 +182,32 @@ export function unlockChapterForReader(
   };
 
   saveReaderAccount(updatedAccount);
+  syncGlobalRegistry(transaction, updatedAccount);
   return updatedAccount;
+}
+
+// Helper to keep global transactions ledger and registered users in sync
+function syncGlobalRegistry(transaction: PaymentTransaction, account: ReaderAccount) {
+  try {
+    const rawTx = localStorage.getItem('sukasri_global_transactions_v1');
+    const txList: PaymentTransaction[] = rawTx ? JSON.parse(rawTx) : [];
+    if (!txList.some(t => t.id === transaction.id)) {
+      txList.unshift(transaction);
+      localStorage.setItem('sukasri_global_transactions_v1', JSON.stringify(txList));
+    }
+  } catch {}
+
+  try {
+    const rawUsers = localStorage.getItem('sukasri_registered_users_v1');
+    const users: ReaderAccount[] = rawUsers ? JSON.parse(rawUsers) : [];
+    const idx = users.findIndex(u => u.readerId === account.readerId);
+    if (idx >= 0) {
+      users[idx] = { ...users[idx], ...account };
+    } else {
+      users.unshift(account);
+    }
+    localStorage.setItem('sukasri_registered_users_v1', JSON.stringify(users));
+  } catch {}
 }
 
 // Activate 30-Day Monthly Membership (₹19 INR / $0.50 USD)
@@ -221,6 +246,7 @@ export function activateMonthlyMembership(
   };
 
   saveReaderAccount(updatedAccount);
+  syncGlobalRegistry(transaction, updatedAccount);
   return updatedAccount;
 }
 

@@ -51,6 +51,14 @@ export interface PaymentTransaction {
   upiRefNumber?: string;
 }
 
+export interface PricingConfig {
+  singleChapterPriceInr: number;
+  monthlyMembershipPriceInr: number;
+  singleChapterPriceUsd: number;
+  monthlyMembershipPriceUsd: number;
+  lastUpdated?: string;
+}
+
 export interface ReaderAccount {
   readerId: string;
   name: string;
@@ -58,7 +66,11 @@ export interface ReaderAccount {
   phone?: string;
   countryCode?: string;
   isLoggedIn?: boolean;
-  authMethod?: 'phone' | 'email' | 'guest';
+  authMethod?: 'phone' | 'email' | 'password' | 'guest';
+  passwordHash?: string;
+  role?: 'reader' | 'admin' | 'owner';
+  createdAt?: string;
+  lastLoginAt?: string;
   avatarUrl?: string;
   country: 'IN' | 'INTL';
   membershipStatus: 'free' | 'monthly_member';

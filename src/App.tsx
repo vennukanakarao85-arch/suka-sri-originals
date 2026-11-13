@@ -19,11 +19,13 @@ import { CharacterUniverse } from './components/characters/CharacterUniverse';
 import { WorldsAndLore } from './components/lore/WorldsAndLore';
 import { AnimeStudio } from './components/anime/AnimeStudio';
 import { CreatorStudio } from './components/studio/CreatorStudio';
+import { OwnerCommandCenter } from './components/admin/OwnerCommandCenter';
 import { UsersPage } from './components/account/UsersPage';
 import { UserAuthModal } from './components/account/UserAuthModal';
 import { PaymentModal } from './components/manga/PaymentModal';
 import { AboutAuthorModal } from './components/author/AboutAuthorModal';
 import { FortressSecurityModal } from './components/security/FortressSecurityModal';
+import { isOwnerOrAdmin } from './services/authService';
 
 interface RouteState {
   tab: string;
@@ -50,7 +52,7 @@ function parseHash(hashStr: string): RouteState {
     return { tab: 'manga', mangaId: null, chapterId: null };
   }
 
-  if (['characters', 'lore', 'anime', 'studio', 'users'].includes(primary)) {
+  if (['characters', 'lore', 'anime', 'studio', 'users', 'owner'].includes(primary)) {
     return { tab: primary, mangaId: null, chapterId: null };
   }
 
@@ -407,21 +409,37 @@ export function App() {
         )}
 
         {activeTab === 'studio' && (
-          <CreatorStudio
-            mangaList={mangaList}
-            onMangaListUpdated={(updated) => setMangaList(updated)}
-            config={config}
-            onConfigUpdated={(newConfig) => setConfig(newConfig)}
-            onPreviewChapter={(ch) => {
-              const targetMangaId = ch.mangaId || mangaList[0]?.id;
-              const target = mangaList.find((m) => m.id === targetMangaId);
-              if (target && !target.chapters.some((c) => c.id === ch.id)) {
-                target.chapters.unshift(ch);
-                setMangaList([...mangaList]);
-              }
-              setReadingChapterId(ch.id);
-            }}
-            initialMangaId={studioInitialMangaId}
+          isOwnerOrAdmin(readerAccount) ? (
+            <CreatorStudio
+              mangaList={mangaList}
+              onMangaListUpdated={(updated) => setMangaList(updated)}
+              config={config}
+              onConfigUpdated={(newConfig) => setConfig(newConfig)}
+              onPreviewChapter={(ch) => {
+                const targetMangaId = ch.mangaId || mangaList[0]?.id;
+                const target = mangaList.find((m) => m.id === targetMangaId);
+                if (target && !target.chapters.some((c) => c.id === ch.id)) {
+                  target.chapters.unshift(ch);
+                  setMangaList([...mangaList]);
+                }
+                setReadingChapterId(ch.id);
+              }}
+              initialMangaId={studioInitialMangaId}
+            />
+          ) : (
+            <OwnerCommandCenter
+              currentAccount={readerAccount}
+              onNavigateToStudio={() => setActiveTab('studio')}
+              onNavigateToUniverse={() => setActiveTab('home')}
+            />
+          )
+        )}
+
+        {activeTab === 'owner' && (
+          <OwnerCommandCenter
+            currentAccount={readerAccount}
+            onNavigateToStudio={() => setActiveTab('studio')}
+            onNavigateToUniverse={() => setActiveTab('home')}
           />
         )}
 
@@ -432,6 +450,7 @@ export function App() {
             allChapters={allChapters}
             onReadChapter={(chapterId) => setReadingChapterId(chapterId)}
             onOpenPricing={() => handleOpenPayment(undefined, 'membership')}
+            onOpenOwnerCommandCenter={() => setActiveTab('owner')}
           />
         )}
       </main>
@@ -487,6 +506,10 @@ export function App() {
         onOpenPricing={() => {
           setIsAccountModalOpen(false);
           handleOpenPayment(undefined, 'membership');
+        }}
+        onOpenOwnerCommandCenter={() => {
+          setIsAccountModalOpen(false);
+          setActiveTab('owner');
         }}
       />
 

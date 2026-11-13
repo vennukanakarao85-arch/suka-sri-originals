@@ -3,6 +3,7 @@ import { Chapter, ReaderAccount, PaymentCurrency, PaymentMethod } from '../../ty
 import { unlockChapterForReader, activateMonthlyMembership, downloadWatermarkedChapter } from '../../services/storage';
 import { processVerifiedTransaction, sanitizeAndPurgeSensitiveData } from '../../services/paymentShield';
 import { rateLimiter, sanitizeInput } from '../../services/securityShield';
+import { getPricingConfig, subscribeToPricing } from '../../services/pricingService';
 import { sound } from '../../data/soundEffects';
 import QRCode from 'qrcode';
 import {
@@ -70,9 +71,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const authorName = 'Srinivas Vennu';
   const brandName = 'SUKA SRI ORIGINALS';
 
+  // Dynamic reactive pricing
+  const [pricingConfig, setPricingConfig] = useState(getPricingConfig());
+
+  useEffect(() => {
+    return subscribeToPricing(cfg => {
+      setPricingConfig(cfg);
+    });
+  }, []);
+
   // Calculate pricing based on plan and currency
-  const chapterPrice = currency === 'INR' ? 49 : 1.00;
-  const membershipPrice = currency === 'INR' ? 19 : 0.50;
+  const chapterPrice = currency === 'INR' ? pricingConfig.singleChapterPriceInr : pricingConfig.singleChapterPriceUsd;
+  const membershipPrice = currency === 'INR' ? pricingConfig.monthlyMembershipPriceInr : pricingConfig.monthlyMembershipPriceUsd;
   const currentAmount = selectedPlan === 'chapter' ? chapterPrice : membershipPrice;
 
   // Transaction narrative note
@@ -267,7 +277,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     <Lock className="w-3.5 h-3.5 text-gold-400" />
                   </div>
                   <div className="font-display text-lg font-black text-white">
-                    {currency === 'INR' ? '₹49' : '$1.00'}
+                    {currency === 'INR' ? `₹${chapterPrice}` : `$${chapterPrice.toFixed(2)}`}
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">
                     {chapter ? `Ch. ${chapter.chapterNumber}: ${chapter.title}` : 'Unlock single chapter'}
@@ -296,7 +306,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     </span>
                   </div>
                   <div className="font-display text-lg font-black text-white">
-                    {currency === 'INR' ? '₹19' : '$0.50'}
+                    {currency === 'INR' ? `₹${membershipPrice}` : `$${membershipPrice.toFixed(2)}`}
                     <span className="text-xs text-slate-400 font-normal"> / month</span>
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">
