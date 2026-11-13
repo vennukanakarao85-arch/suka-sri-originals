@@ -186,10 +186,18 @@ export const UsersPage: React.FC<UsersPageProps> = ({
       const res = await verifyOtpAndLogin(target, code, authMethod, displayName);
       if (res.success && res.account) {
         onAccountUpdated(res.account);
-        setSuccessMessage('Welcome! You have signed in successfully.');
+        setSuccessMessage(`Verified Reader ID: ${res.account.readerId} — Starting with Chapter 1...`);
         sound.playCelestialChime();
         setOtpSent(false);
         setPreviewOtp(null);
+
+        // Automatically open Chapter 1 (the starting chapter)
+        const startingChapter = allChapters.find((c) => c.chapterNumber === 1) || allChapters[0];
+        const chapterIdToOpen = startingChapter?.id || 'sample-ch-1';
+
+        setTimeout(() => {
+          onReadChapter(chapterIdToOpen);
+        }, 700);
       } else {
         setErrorMessage(res.message);
       }
@@ -542,8 +550,21 @@ export const UsersPage: React.FC<UsersPageProps> = ({
                     </span>
                   )}
                 </div>
-                <div className="text-[11px] text-slate-500 font-mono pt-1">
-                  Verified Reader ID: <strong className="text-gold-400">{readerAccount.readerId}</strong>
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <div className="text-[11px] text-slate-400 font-mono">
+                    Verified Reader ID: <strong className="text-gold-400">{readerAccount.readerId}</strong>
+                  </div>
+                  <button
+                    onClick={() => {
+                      sound.playClick();
+                      const startingChapter = allChapters.find((c) => c.chapterNumber === 1) || allChapters[0];
+                      onReadChapter(startingChapter?.id || 'sample-ch-1');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-display text-[10px] font-black uppercase tracking-wider hover:brightness-110 shadow-sm cursor-pointer"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Start with Chapter 1</span>
+                  </button>
                 </div>
               </div>
             </div>

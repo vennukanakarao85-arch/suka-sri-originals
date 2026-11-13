@@ -200,10 +200,21 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
       const res = await verifyOtpAndLogin(target, code, authMethod, displayName);
       if (res.success && res.account) {
         onAccountUpdated(res.account);
-        setSuccessMessage('Welcome! You are now logged in.');
+        setSuccessMessage(`Verified Reader ID: ${res.account.readerId} — Starting with Chapter 1...`);
         sound.playCelestialChime();
         setOtpSent(false);
         setPreviewOtp(null);
+
+        // Automatically open Chapter 1 (the starting chapter)
+        const startingChapter = allChapters.find((c) => c.chapterNumber === 1) || allChapters[0];
+        const chapterIdToOpen = startingChapter?.id || 'sample-ch-1';
+
+        setTimeout(() => {
+          onClose();
+          if (onReadChapter) {
+            onReadChapter(chapterIdToOpen);
+          }
+        }, 700);
       } else {
         setErrorMessage(res.message);
       }
@@ -306,9 +317,23 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
                           </>
                         )}
                       </p>
-                      <p className="text-[10px] text-slate-500 font-mono mt-1">
-                        Reader ID: {readerAccount.readerId}
+                      <p className="text-[11px] text-slate-400 font-mono mt-1">
+                        Verified Reader ID: <strong className="text-gold-400">{readerAccount.readerId}</strong>
                       </p>
+                      <button
+                        onClick={() => {
+                          sound.playClick();
+                          onClose();
+                          if (onReadChapter) {
+                            const startingChapter = allChapters.find((c) => c.chapterNumber === 1) || allChapters[0];
+                            onReadChapter(startingChapter?.id || 'sample-ch-1');
+                          }
+                        }}
+                        className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-display text-[10px] font-black uppercase tracking-wider hover:brightness-110 shadow-md cursor-pointer"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>Start with Chapter 1</span>
+                      </button>
                     </div>
                   </div>
 
