@@ -85,7 +85,7 @@ function initializeDefaultRegistry(): ReaderAccount[] {
   const defaultUser: ReaderAccount = {
     readerId: 'SSO-READER-000',
     name: 'Srinivas Vennu (Owner)',
-    email: 'reader@sukasri.universe',
+    email: 'srinivas@sukasri.universe',
     phone: '+91 9502714652',
     countryCode: '+91',
     isLoggedIn: true,
@@ -297,10 +297,15 @@ export async function loginWithPassword(identifier: string, plainPassword: strin
   }
 
   // Login successful! Restore entire account with VIP membership & unlocked chapters
+  const cleanUserPhone = matchedUser.phone ? matchedUser.phone.replace(/[^0-9]/g, '') : '';
+  const cleanUserEmail = matchedUser.email ? matchedUser.email.toLowerCase().trim() : '';
+  const isActualOwner = cleanUserPhone.includes('9502714652') || cleanUserEmail.includes('srinivas') || cleanUserEmail.includes('kanakarao') || cleanUserEmail.includes('owner@');
+
   const restoredAccount: ReaderAccount = {
     ...matchedUser,
     isLoggedIn: true,
     authMethod: 'password',
+    role: isActualOwner ? 'owner' : 'reader',
     lastLoginAt: new Date().toISOString(),
     watermarkSignature: `AUTH_PASSWORD_${Date.now().toString(36).toUpperCase()}_VERIFIED`
   };
@@ -308,9 +313,11 @@ export async function loginWithPassword(identifier: string, plainPassword: strin
   saveReaderAccount(restoredAccount);
   registerOrUpdateUser(restoredAccount);
 
-  // If this user is owner/admin, also activate owner session
-  if (restoredAccount.role === 'owner' || restoredAccount.role === 'admin' || (restoredAccount.phone && restoredAccount.phone.includes('9502714652'))) {
+  // Set or revoke owner session strictly based on owner identity
+  if (isActualOwner) {
     setOwnerSession(true);
+  } else {
+    setOwnerSession(false);
   }
 
   await logSecurityEvent('INFO', 'PASSWORD_LOGIN_SUCCESS', 'Auth Service', `User ${restoredAccount.readerId} logged in via password from device.`);
@@ -619,12 +626,26 @@ export async function verifyOwnerOtp(enteredCode: string): Promise<{ success: bo
 }
 
 export function isOwnerOrAdmin(account?: ReaderAccount): boolean {
-  if (isOwnerAuthenticated()) return true;
   const target = account || getReaderAccount();
-  if (target.role === 'owner' || target.role === 'admin') return true;
-  if (target.phone && target.phone.replace(/[^0-9]/g, '').includes('9502714652')) return true;
-  if (target.email && (target.email.includes('srinivas') || target.email.includes('kanakarao') || target.email.includes('owner'))) return true;
-  return false;
+
+  // If a user is logged in, verify whether they match the owner credentials
+  if (target && target.isLoggedIn) {
+    const cleanPhone = target.phone ? target.phone.replace(/[^0-9]/g, '') : '';
+    const cleanEmail = target.email ? target.email.toLowerCase().trim() : '';
+
+    const isOwnerPhone = cleanPhone.includes('9502714652');
+    const isOwnerEmail = cleanEmail.includes('srinivas') || cleanEmail.includes('kanakarao') || cleanEmail.includes('owner@');
+
+    // If neither matches owner phone nor owner email: this user is definitely a normal reader!
+    if (!isOwnerPhone && !isOwnerEmail) {
+      return false;
+    }
+
+    return target.role === 'owner' || target.role === 'admin' || isOwnerPhone || isOwnerEmail;
+  }
+
+  // If user is guest / not logged in, check if owner passcode/OTP was unlocked in this browser session
+  return isOwnerAuthenticated();
 }
 
 // ---------------------------------------------------------------------------
@@ -855,31 +876,40 @@ export async function verifyOtpAndLogin(
     ? `Reader (${session.target.slice(-4)})`
     : session.target.split('@')[0];
 
-  const cleanTargetPhone = isPhone ? session.target : currentAccount.phone;
+  const cleanTargetPhone = isPhone ? session.target : (currentAccount.phone || '');
   const isOwnerNumber = cleanTargetPhone && cleanTargetPhone.replace(/[^0-9]/g, '').includes('9502714652');
+  const targetEmail = isPhone ? (currentAccount.email || '') : session.target;
+  const cleanTargetEmail = targetEmail.toLowerCase().trim();
+  const isOwnerEmail = cleanTargetEmail.includes('srinivas') || cleanTargetEmail.includes('kanakarao') || cleanTargetEmail.includes('owner@');
+  const isActualOwner = Boolean(isOwnerNumber || isOwnerEmail);
 
-  const readerId = currentAccount.readerId
-    ? currentAccount.readerId.replace('SSRI-READER-8842', 'SSO-READER-000').replace('SSRI-READER-', 'SSO-READER-')
-    : generateReaderId();
+  // Set or revoke owner session immediately based on authenticated user
+  if (isActualOwner) {
+    setOwnerSession(true);
+  } else {
+    setOwnerSession(false);
+  }
+
+  const readerId = isActualOwner
+    ? 'SSO-READER-000'
+    : (currentAccount.readerId && currentAccount.readerId !== 'SSO-READER-000'
+        ? currentAccount.readerId.replace('SSRI-READER-8842', 'SSO-READER-000').replace('SSRI-READER-', 'SSO-READER-')
+        : generateReaderId());
 
   const updatedAccount: ReaderAccount = {
     ...currentAccount,
-    readerId: isOwnerNumber ? 'SSO-READER-000' : readerId,
-    name: name?.trim() || currentAccount.name !== 'Valued Manga Reader' ? (name?.trim() || currentAccount.name) : defaultName,
+    readerId,
+    name: name?.trim() || (currentAccount.name !== 'Valued Manga Reader' && currentAccount.name !== 'Guest Reader' ? currentAccount.name : defaultName),
     email: isPhone ? currentAccount.email : session.target,
     phone: cleanTargetPhone,
     isLoggedIn: true,
     authMethod: type,
-    role: isOwnerNumber ? 'owner' : (currentAccount.role || 'reader'),
+    role: isActualOwner ? 'owner' : 'reader',
     watermarkSignature: `AUTH_${type.toUpperCase()}_${Date.now().toString(36).toUpperCase()}_VERIFIED`
   };
 
   saveReaderAccount(updatedAccount);
   registerOrUpdateUser(updatedAccount);
-
-  if (isOwnerNumber) {
-    setOwnerSession(true);
-  }
 
   await logSecurityEvent(
     'INFO',
@@ -907,6 +937,7 @@ export function logoutReaderAccount(): ReaderAccount {
     ...current,
     isLoggedIn: false,
     authMethod: 'guest',
+    role: 'reader',
     name: 'Guest Reader',
     email: 'guest@sukasri.universe',
     phone: undefined

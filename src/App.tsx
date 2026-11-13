@@ -4,7 +4,7 @@ import { supabaseService } from './services/supabase';
 import { getReaderAccount } from './services/storage';
 import { SAMPLE_CHAPTER_1, SAMPLE_CHARACTERS } from './data/initialCanon';
 import { sound } from './data/soundEffects';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, BookOpen, ShieldAlert } from 'lucide-react';
 import { CosmicBackground } from './components/common/CosmicBackground';
 import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
@@ -372,6 +372,7 @@ export function App() {
                 setActiveTab('manga');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
+              readerAccount={readerAccount}
             />
           </div>
         )}
@@ -381,6 +382,7 @@ export function App() {
             mangaList={effectiveMangaList}
             onSelectManga={handleSelectManga}
             onOpenStudio={() => handleOpenStudioForManga()}
+            readerAccount={readerAccount}
           />
         )}
 
@@ -399,6 +401,7 @@ export function App() {
           <CharacterUniverse
             characters={allCharacters}
             onOpenStudio={() => handleOpenStudioForManga()}
+            readerAccount={readerAccount}
           />
         )}
 
@@ -426,6 +429,22 @@ export function App() {
               }}
               initialMangaId={studioInitialMangaId}
             />
+          ) : readerAccount?.isLoggedIn ? (
+            <div className="py-24 text-center max-w-md mx-auto px-4">
+              <div className="w-16 h-16 rounded-2xl bg-void-900 border border-void-800 flex items-center justify-center mx-auto mb-4 text-gold-400">
+                <BookOpen className="w-8 h-8" />
+              </div>
+              <h2 className="font-display text-2xl font-bold text-white mb-2">Private Creator Studio</h2>
+              <p className="text-xs text-slate-400 leading-relaxed mb-6">
+                The Manga Production Studio is reserved exclusively for the author and publishing owner. Regular reader accounts do not have creator editing privileges.
+              </p>
+              <button
+                onClick={() => setActiveTab('home')}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-bold text-xs uppercase tracking-wider"
+              >
+                Return to Universe
+              </button>
+            </div>
           ) : (
             <OwnerCommandCenter
               currentAccount={readerAccount}
@@ -436,11 +455,35 @@ export function App() {
         )}
 
         {activeTab === 'owner' && (
-          <OwnerCommandCenter
-            currentAccount={readerAccount}
-            onNavigateToStudio={() => setActiveTab('studio')}
-            onNavigateToUniverse={() => setActiveTab('home')}
-          />
+          isOwnerOrAdmin(readerAccount) ? (
+            <OwnerCommandCenter
+              currentAccount={readerAccount}
+              onNavigateToStudio={() => setActiveTab('studio')}
+              onNavigateToUniverse={() => setActiveTab('home')}
+            />
+          ) : readerAccount?.isLoggedIn ? (
+            <div className="py-24 text-center max-w-md mx-auto px-4">
+              <div className="w-16 h-16 rounded-2xl bg-void-900 border border-void-800 flex items-center justify-center mx-auto mb-4 text-purple-400">
+                <BookOpen className="w-8 h-8" />
+              </div>
+              <h2 className="font-display text-2xl font-bold text-white mb-2">Restricted Command Center</h2>
+              <p className="text-xs text-slate-400 leading-relaxed mb-6">
+                The Admin Command Center is reserved exclusively for the author Srinivas Vennu.
+              </p>
+              <button
+                onClick={() => setActiveTab('home')}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-bold text-xs uppercase tracking-wider"
+              >
+                Return to Universe
+              </button>
+            </div>
+          ) : (
+            <OwnerCommandCenter
+              currentAccount={readerAccount}
+              onNavigateToStudio={() => setActiveTab('studio')}
+              onNavigateToUniverse={() => setActiveTab('home')}
+            />
+          )
         )}
 
         {activeTab === 'users' && (

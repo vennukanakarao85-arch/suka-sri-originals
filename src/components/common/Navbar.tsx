@@ -676,7 +676,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </div>
                       </button>
                     </>
-                  ) : (
+                  ) : !readerAccount?.isLoggedIn ? (
                     <button
                       onClick={() => {
                         sound.playClick();
@@ -698,7 +698,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </div>
                       <Lock className="w-3.5 h-3.5 text-slate-500" />
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             )}

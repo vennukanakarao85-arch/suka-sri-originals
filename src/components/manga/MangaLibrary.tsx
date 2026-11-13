@@ -1,18 +1,21 @@
 import React, { useState, useMemo } from 'react';
-import { MangaSeries } from '../../types';
+import { MangaSeries, ReaderAccount } from '../../types';
 import { Search, BookOpen, Layers, Sparkles, Filter, Star, Eye, PlusCircle, ArrowRight } from 'lucide-react';
 import { sound } from '../../data/soundEffects';
+import { isOwnerOrAdmin } from '../../services/authService';
 
 interface MangaLibraryProps {
   mangaList: MangaSeries[];
   onSelectManga: (mangaId: string) => void;
   onOpenStudio: () => void;
+  readerAccount?: ReaderAccount;
 }
 
 export const MangaLibrary: React.FC<MangaLibraryProps> = ({
   mangaList,
   onSelectManga,
   onOpenStudio,
+  readerAccount,
 }) => {
   const [selectedGenre, setSelectedGenre] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -74,17 +77,19 @@ export const MangaLibrary: React.FC<MangaLibraryProps> = ({
               />
             </div>
 
-            {/* Quick action: Add Manga */}
-            <button
-              onClick={() => {
-                sound.playClick();
-                onOpenStudio();
-              }}
-              className="w-full md:w-auto px-5 py-2.5 rounded-xl font-display text-xs font-bold uppercase tracking-wider bg-electric-500/10 hover:bg-electric-500/20 text-electric-400 border border-electric-500/30 flex items-center justify-center gap-2 transition-all"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Publish New Series
-            </button>
+            {/* Quick action: Add Manga (Owner Only) */}
+            {isOwnerOrAdmin(readerAccount) && (
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  onOpenStudio();
+                }}
+                className="w-full md:w-auto px-5 py-2.5 rounded-xl font-display text-xs font-bold uppercase tracking-wider bg-electric-500/10 hover:bg-electric-500/20 text-electric-400 border border-electric-500/30 flex items-center justify-center gap-2 transition-all"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Publish New Series
+              </button>
+            )}
           </div>
 
           {/* Filter Pills */}
@@ -143,18 +148,36 @@ export const MangaLibrary: React.FC<MangaLibraryProps> = ({
               Awaiting Chapter 1 Release
             </h3>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-6 leading-relaxed">
-              No manga series have uploaded chapters yet. Open the Creator Studio to upload your manga pages for Chapter 1 and publish it to the universe!
+              {isOwnerOrAdmin(readerAccount)
+                ? 'No manga series have uploaded chapters yet. Open the Creator Studio to upload your manga pages for Chapter 1 and publish it to the universe!'
+                : 'Canonical chapters are being finalized and published by author Srinivas Vennu. Check back soon for the official release.'}
             </p>
-            <button
-              onClick={() => {
-                sound.playClick();
-                onOpenStudio();
-              }}
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-display font-bold text-xs uppercase tracking-widest hover:brightness-110 shadow-[0_0_25px_rgba(255,215,0,0.35)] transition-all active:scale-95"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Upload Chapter 1 in Creator Studio
-            </button>
+            {isOwnerOrAdmin(readerAccount) ? (
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  onOpenStudio();
+                }}
+                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-display font-bold text-xs uppercase tracking-widest hover:brightness-110 shadow-[0_0_25px_rgba(255,215,0,0.35)] transition-all active:scale-95"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Upload Chapter 1 in Creator Studio
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  setSelectedStatus('all');
+                  setSelectedGenre('all');
+                  setSelectedFormat('all');
+                  setSearchQuery('');
+                }}
+                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-display font-bold text-xs uppercase tracking-widest hover:brightness-110 shadow-[0_0_25px_rgba(255,215,0,0.35)] transition-all active:scale-95"
+              >
+                <BookOpen className="w-4 h-4" />
+                Explore Manga Arcs
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -31,6 +31,7 @@ import { sound } from '../../data/soundEffects';
 import { ReaderAccount } from '../../types';
 import { isChapterUnlocked, downloadWatermarkedChapter } from '../../services/storage';
 import { engagementService } from '../../services/realEngagement';
+import { isOwnerOrAdmin } from '../../services/authService';
 
 interface MangaDetailPageProps {
   manga: MangaSeries;
@@ -224,15 +225,17 @@ export const MangaDetailPage: React.FC<MangaDetailPageProps> = ({
                     {isBookmarked ? 'Bookmarked' : 'Bookmark'}
                   </button>
 
-                  <button
-                    onClick={() => {
-                      sound.playClick();
-                      onOpenStudioForManga(manga.id);
-                    }}
-                    className="py-2 rounded-xl bg-electric-500/10 hover:bg-electric-500/20 border border-electric-500/30 text-electric-400 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
-                  >
-                    + Add Chapter
-                  </button>
+                  {isOwnerOrAdmin(readerAccount) && (
+                    <button
+                      onClick={() => {
+                        sound.playClick();
+                        onOpenStudioForManga(manga.id);
+                      }}
+                      className="py-2 rounded-xl bg-electric-500/10 hover:bg-electric-500/20 border border-electric-500/30 text-electric-400 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      + Add Chapter
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -404,7 +407,7 @@ export const MangaDetailPage: React.FC<MangaDetailPageProps> = ({
                     <BookOpen className="w-4 h-4" />
                     Read First Chapter (Ch. {firstChapter.chapterNumber})
                   </button>
-                ) : (
+                ) : isOwnerOrAdmin(readerAccount) ? (
                   <button
                     onClick={() => {
                       sound.playClick();
@@ -415,6 +418,11 @@ export const MangaDetailPage: React.FC<MangaDetailPageProps> = ({
                     <BookOpen className="w-4 h-4" />
                     + Upload Chapter 1 (Creator Studio)
                   </button>
+                ) : (
+                  <div className="px-5 py-3 rounded-xl bg-void-900 border border-void-800 text-xs text-slate-400 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-gold-400" />
+                    <span>Awaiting Official Chapter 1 Release</span>
+                  </div>
                 )}
 
                 {latestChapter && latestChapter.id !== firstChapter?.id && (
@@ -692,12 +700,14 @@ export const MangaDetailPage: React.FC<MangaDetailPageProps> = ({
                                 ? `${arcChapters.length} Released`
                                 : 'Empty Arc (0 Chapters)'}
                             </span>
-                            <button
-                              onClick={() => onOpenStudioForManga(manga.id)}
-                              className="text-[11px] font-bold text-electric-400 hover:text-white px-3 py-1.5 rounded-lg bg-electric-500/10 hover:bg-electric-500/20 border border-electric-500/30 transition-all uppercase tracking-wider"
-                            >
-                              + Add Chapter
-                            </button>
+                            {isOwnerOrAdmin(readerAccount) && (
+                              <button
+                                onClick={() => onOpenStudioForManga(manga.id)}
+                                className="text-[11px] font-bold text-electric-400 hover:text-white px-3 py-1.5 rounded-lg bg-electric-500/10 hover:bg-electric-500/20 border border-electric-500/30 transition-all uppercase tracking-wider"
+                              >
+                                + Add Chapter
+                              </button>
+                            )}
                           </div>
                         </div>
 
@@ -707,12 +717,18 @@ export const MangaDetailPage: React.FC<MangaDetailPageProps> = ({
                             <span className="leading-relaxed">
                               Empty Arc · Chapters across <strong className="text-slate-300">{arc.chapterRange}</strong> have not been published yet.
                             </span>
-                            <button
-                              onClick={() => onOpenStudioForManga(manga.id)}
-                              className="text-gold-400 hover:text-gold-300 text-xs font-bold underline shrink-0 inline-flex items-center gap-1"
-                            >
-                              Publish for this Arc &rarr;
-                            </button>
+                            {isOwnerOrAdmin(readerAccount) ? (
+                              <button
+                                onClick={() => onOpenStudioForManga(manga.id)}
+                                className="text-gold-400 hover:text-gold-300 text-xs font-bold underline shrink-0 inline-flex items-center gap-1"
+                              >
+                                Publish for this Arc &rarr;
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-500 font-mono">
+                                In Production
+                              </span>
+                            )}
                           </div>
                         ) : (
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -840,15 +856,24 @@ export const MangaDetailPage: React.FC<MangaDetailPageProps> = ({
                     <BookOpen className="w-12 h-12 text-slate-600 mx-auto mb-3" />
                     <h4 className="font-display text-lg font-bold text-slate-200">No Chapters Uploaded Yet</h4>
                     <p className="text-xs text-slate-400 mt-1 mb-5 leading-relaxed">
-                      This 450-chapter saga is partitioned across 3 parts and 28 canonical arcs. Once you publish Chapter 1 via Creator Studio, it will appear here and become readable in the library.
+                      {isOwnerOrAdmin(readerAccount)
+                        ? 'This 450-chapter saga is partitioned across 3 parts and 28 canonical arcs. Once you publish Chapter 1 via Creator Studio, it will appear here and become readable in the library.'
+                        : 'Official chapters are currently being produced and published by author Srinivas Vennu. Check back soon for the latest releases.'}
                     </p>
-                    <button
-                      onClick={() => onOpenStudioForManga(manga.id)}
-                      className="px-6 py-3 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 text-xs font-bold uppercase tracking-wider shadow-[0_0_20px_rgba(255,215,0,0.3)] hover:brightness-110 transition-all inline-flex items-center gap-2"
-                    >
-                      <BookOpen className="w-4 h-4" />
-                      + Upload Chapter 1 in Creator Studio
-                    </button>
+                    {isOwnerOrAdmin(readerAccount) ? (
+                      <button
+                        onClick={() => onOpenStudioForManga(manga.id)}
+                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 text-xs font-bold uppercase tracking-wider shadow-[0_0_20px_rgba(255,215,0,0.3)] hover:brightness-110 transition-all inline-flex items-center gap-2"
+                      >
+                        <BookOpen className="w-4 h-4" />
+                        + Upload Chapter 1 in Creator Studio
+                      </button>
+                    ) : (
+                      <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-void-900 border border-void-800 text-xs text-slate-400">
+                        <Clock className="w-4 h-4 text-gold-400" />
+                        <span>Releasing Soon</span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

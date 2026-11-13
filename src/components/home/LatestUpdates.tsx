@@ -1,8 +1,9 @@
 import React from 'react';
-import { Chapter, MangaSeries } from '../../types';
+import { Chapter, MangaSeries, ReaderAccount } from '../../types';
 import { BookOpen, Calendar, FileText, ArrowRight, PlusCircle, Eye, Sparkles, Heart } from 'lucide-react';
 import { sound } from '../../data/soundEffects';
 import { engagementService } from '../../services/realEngagement';
+import { isOwnerOrAdmin } from '../../services/authService';
 
 interface LatestUpdatesProps {
   mangaList: MangaSeries[];
@@ -10,6 +11,7 @@ interface LatestUpdatesProps {
   onSelectManga: (mangaId: string) => void;
   onOpenStudio: () => void;
   onViewAllManga: () => void;
+  readerAccount?: ReaderAccount;
 }
 
 export const LatestUpdates: React.FC<LatestUpdatesProps> = ({
@@ -18,6 +20,7 @@ export const LatestUpdates: React.FC<LatestUpdatesProps> = ({
   onSelectManga,
   onOpenStudio,
   onViewAllManga,
+  readerAccount,
 }) => {
   // Aggregate all published chapters across all manga series
   const allUpdates: { chapter: Chapter; manga: MangaSeries }[] = [];
@@ -52,16 +55,18 @@ export const LatestUpdates: React.FC<LatestUpdatesProps> = ({
           </div>
 
           <div className="mt-4 sm:mt-0 flex items-center gap-3">
-            <button
-              onClick={() => {
-                sound.playClick();
-                onOpenStudio();
-              }}
-              className="px-4 py-2 rounded-lg text-xs font-bold tracking-wider uppercase bg-electric-500/10 hover:bg-electric-500/20 text-electric-400 border border-electric-500/30 flex items-center gap-2 transition-all"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              Creator Studio
-            </button>
+            {isOwnerOrAdmin(readerAccount) && (
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  onOpenStudio();
+                }}
+                className="px-4 py-2 rounded-lg text-xs font-bold tracking-wider uppercase bg-electric-500/10 hover:bg-electric-500/20 text-electric-400 border border-electric-500/30 flex items-center gap-2 transition-all"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                Creator Studio
+              </button>
+            )}
             <button
               onClick={() => {
                 sound.playClick();
@@ -89,16 +94,29 @@ export const LatestUpdates: React.FC<LatestUpdatesProps> = ({
             <p className="text-xs sm:text-sm text-slate-400 max-w-lg mx-auto mb-6 leading-relaxed">
               The universal chapter release feed is clear and ready. All view counts and like metrics start at 0 and track genuine viewer engagement once official chapters are published by author Srinivas Vennu.
             </p>
-            <button
-              onClick={() => {
-                sound.playClick();
-                onOpenStudio();
-              }}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-electric-500 hover:bg-electric-400 text-void-950 font-display font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(0,229,255,0.3)] active:scale-95"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Upload Chapter 1 in Studio
-            </button>
+            {isOwnerOrAdmin(readerAccount) ? (
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  onOpenStudio();
+                }}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-electric-500 hover:bg-electric-400 text-void-950 font-display font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(0,229,255,0.3)] active:scale-95"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Upload Chapter 1 in Studio
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  onViewAllManga();
+                }}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-void-950 font-display font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(255,215,0,0.3)] active:scale-95"
+              >
+                <BookOpen className="w-4 h-4" />
+                Explore Manga Series
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

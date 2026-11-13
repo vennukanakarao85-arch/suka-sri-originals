@@ -1,20 +1,23 @@
 import React, { useState, useMemo } from 'react';
-import { Character } from '../../types';
+import { Character, ReaderAccount } from '../../types';
 import { INITIAL_CHARACTERS } from '../../data/initialCanon';
 import { Character3DCard } from './Character3DCard';
 import { CharacterModal } from './CharacterModal';
 import { MasterPosterModal, PosterKey } from '../common/MasterPosterModal';
 import { Sparkles, Users, Network, Search, Filter, ShieldCheck, Maximize2, ArrowUpDown } from 'lucide-react';
 import { sound } from '../../data/soundEffects';
+import { isOwnerOrAdmin } from '../../services/authService';
 
 interface CharacterUniverseProps {
   characters?: Character[];
   onOpenStudio?: () => void;
+  readerAccount?: ReaderAccount;
 }
 
 export const CharacterUniverse: React.FC<CharacterUniverseProps> = ({
   characters = [],
   onOpenStudio,
+  readerAccount,
 }) => {
   const [selectedAffinity, setSelectedAffinity] = useState<string>('all');
   const [selectedFaction, setSelectedFaction] = useState<string>('all');
@@ -191,7 +194,7 @@ export const CharacterUniverse: React.FC<CharacterUniverseProps> = ({
             <p className="text-sm text-slate-300 leading-relaxed mb-6 max-w-md mx-auto">
               No character profiles have been pre-filled. Create and upload your original characters with 3D cards, affinity matrices, and weapons in the Creator Studio.
             </p>
-            {onOpenStudio && (
+            {isOwnerOrAdmin(readerAccount) && onOpenStudio && (
               <button
                 onClick={() => {
                   sound.playClick();
