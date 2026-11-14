@@ -2,6 +2,9 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Chapter, Character, MangaSeries, UniverseConfig } from '../types';
 import { INITIAL_MANGA_COLLECTION } from '../data/initialCanon';
 
+const DEFAULT_SUPABASE_URL = 'https://lqnnmdcfriypxipaisek.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'sb_publishable_MkEo8xaK_UavCNXakn8eMw_rSRkSzZV';
+
 const STORAGE_KEYS = {
   COLLECTION: 'suka_sri_manga_collection_v8',
   CONFIG: 'suka_sri_config_v1',
@@ -23,9 +26,11 @@ class SupabaseService {
     } catch {}
 
     this.config = this.loadConfig();
-    if (this.config.supabaseUrl && this.config.supabaseAnonKey) {
+    const activeUrl = this.config.supabaseUrl || DEFAULT_SUPABASE_URL;
+    const activeKey = this.config.supabaseAnonKey || DEFAULT_SUPABASE_KEY;
+    if (activeUrl && activeKey) {
       try {
-        this.client = createClient(this.config.supabaseUrl, this.config.supabaseAnonKey);
+        this.client = createClient(activeUrl, activeKey);
       } catch (err) {
         console.warn('Could not initialize Supabase client:', err);
       }
@@ -35,21 +40,28 @@ class SupabaseService {
   private loadConfig(): UniverseConfig {
     const saved = localStorage.getItem(STORAGE_KEYS.CONFIG);
     const savedLogo = localStorage.getItem(STORAGE_KEYS.LOGO);
+    const baseConfig: UniverseConfig = {
+      universeTitle: 'SUKA SRI ORIGINALS',
+      universeSubtitle: 'MANGA • ANIME • ORIGINAL WORLDS',
+      officialLogoUrl: savedLogo || '/images/suka-sri-logo.png',
+      supabaseUrl: DEFAULT_SUPABASE_URL,
+      supabaseAnonKey: DEFAULT_SUPABASE_KEY,
+      supabaseConfigured: true
+    };
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         return {
+          ...baseConfig,
           ...parsed,
+          supabaseUrl: parsed.supabaseUrl || DEFAULT_SUPABASE_URL,
+          supabaseAnonKey: parsed.supabaseAnonKey || DEFAULT_SUPABASE_KEY,
+          supabaseConfigured: true,
           officialLogoUrl: savedLogo || parsed.officialLogoUrl || '/images/suka-sri-logo.png'
         };
       } catch {}
     }
-    return {
-      universeTitle: 'SUKA SRI ORIGINALS',
-      universeSubtitle: 'MANGA • ANIME • ORIGINAL WORLDS',
-      officialLogoUrl: savedLogo || '/images/suka-sri-logo.png',
-      supabaseConfigured: false
-    };
+    return baseConfig;
   }
 
   public getConfig(): UniverseConfig {
@@ -298,8 +310,16 @@ class SupabaseService {
     try {
       const testClient = createClient(url, key);
       const { error } = await testClient.from('manga_series').select('id').limit(1);
-      if (error && error.code !== 'PGRST116' && error.message.includes('fetch')) {
-        return { success: false, message: error.message };
+      if (error) {
+        if (error.code === 'PGRST205') {
+          return {
+            success: true,
+            message: 'Connected to Supabase! Run the SQL migration in SQL Editor to finish table setup.'
+          };
+        }
+        if (error.code !== 'PGRST116' && error.message.includes('fetch')) {
+          return { success: false, message: error.message };
+        }
       }
       return { success: true, message: 'Successfully connected to Supabase project!' };
     } catch (e: unknown) {
