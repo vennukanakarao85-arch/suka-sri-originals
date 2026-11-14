@@ -243,7 +243,7 @@ class SupabaseService {
   private async syncToSupabase(collection: MangaSeries[]) {
     if (!this.client) return;
     try {
-      // Upsert series into 'manga_series' table if present
+      // 1. Upsert series into 'manga_series' table
       await this.client.from('manga_series').upsert(
         collection.map((m) => ({
           id: m.id,
@@ -262,8 +262,35 @@ class SupabaseService {
           bookmarks: m.bookmarks,
         }))
       );
+
+      // 2. Upsert all chapters into 'manga_chapters' table
+      const allChapters = collection.flatMap((m) =>
+        m.chapters.map((c) => ({
+          id: c.id,
+          manga_id: m.id,
+          chapter_number: c.chapterNumber,
+          title: c.title,
+          arc_id: c.arcId,
+          arc_title: c.arcTitle,
+          part_id: c.partId,
+          synopsis: c.synopsis,
+          release_date: c.releaseDate,
+          content_type: c.contentType,
+          text_content: c.textContent,
+          pages: c.pages,
+          cover_url: c.coverUrl,
+          is_draft: c.isDraft,
+          access_type: c.accessType,
+          price_inr: c.priceInr,
+          price_usd: c.priceUsd,
+        }))
+      );
+
+      if (allChapters.length > 0) {
+        await this.client.from('manga_chapters').upsert(allChapters);
+      }
     } catch (err) {
-      console.warn('Sync failed:', err);
+      console.warn('Supabase sync skipped/deferred:', err);
     }
   }
 
