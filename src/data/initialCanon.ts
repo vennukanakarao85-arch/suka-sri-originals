@@ -686,7 +686,7 @@ export const INITIAL_MANGA_COLLECTION: MangaSeries[] = [
     bookmarks: 0,
     parts: INITIAL_PARTS,
     arcs: INITIAL_ARCS,
-    chapters: [],
+    chapters: [SAMPLE_CHAPTER_1],
     characters: INITIAL_CHARACTERS,
     loreLocations: INITIAL_LOCATIONS,
     factions: INITIAL_FACTIONS,
